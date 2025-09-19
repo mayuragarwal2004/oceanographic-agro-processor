@@ -77,57 +77,7 @@ class QueryUnderstandingAgent(BaseAgent):
             'minimum': ['min', 'minimum', 'lowest'],
             'standard_deviation': ['std', 'stdev', 'standard deviation', 'variation'],
             'median': ['median', 'middle'],
-            'trend': ['trend', 'trending', 'change', 'evolution'],
         }
-    
-    def sanitize_json(self, text: str) -> str:
-        """
-        Sanitize JSON response by extracting only the JSON part
-        Removes markdown formatting, code blocks, and extra text
-        """
-        if not text or not isinstance(text, str):
-            return "{}"
-        
-        text = text.strip()
-        
-        # Remove markdown code block formatting
-        text = re.sub(r'^```(?:json)?\s*', '', text, flags=re.MULTILINE)
-        text = re.sub(r'\s*```\s*$', '', text, flags=re.MULTILINE)
-        
-        # Find JSON object boundaries
-        # Look for the first { and last }
-        first_brace = text.find('{')
-        last_brace = text.rfind('}')
-        
-        if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
-            # Extract the JSON part
-            json_part = text[first_brace:last_brace + 1]
-            
-            # Clean up common issues
-            json_part = json_part.replace('\n', ' ')  # Replace newlines with spaces
-            json_part = re.sub(r'\s+', ' ', json_part)  # Normalize whitespace
-            json_part = json_part.replace("'", '"')  # Replace single quotes with double quotes
-            
-            # Remove trailing commas before closing braces/brackets
-            json_part = re.sub(r',\s*}', '}', json_part)
-            json_part = re.sub(r',\s*]', ']', json_part)
-            
-            return json_part.strip()
-        
-        # If no braces found, try to find array notation
-        first_bracket = text.find('[')
-        last_bracket = text.rfind(']')
-        
-        if first_bracket != -1 and last_bracket != -1 and last_bracket > first_bracket:
-            json_part = text[first_bracket:last_bracket + 1]
-            json_part = json_part.replace('\n', ' ')
-            json_part = re.sub(r'\s+', ' ', json_part)
-            json_part = json_part.replace("'", '"')
-            json_part = re.sub(r',\s*]', ']', json_part)
-            return json_part.strip()
-        
-        # If nothing found, return empty object
-        return "{}"
     
     async def process(self, input_data: Any, context: Dict[str, Any] = None) -> AgentResult:
         """Process a user query and extract structured information"""
@@ -207,9 +157,31 @@ Examples:
         response = await self.call_llm(messages, temperature=0.1)  # Low temperature for consistency
         
         try:
-            # Parse JSON response using sanitized content
-            sanitized_content = self.sanitize_json(response.content)
-            entities_data = json.loads(sanitized_content)
+            # Parse JSON response using extracted JSON content
+            self.logger.info(f"=== JSON EXTRACTION for {self.agent_name} ===")
+            self.logger.info(f"Original Response Content:")
+            self.logger.info(f"{response.content}")
+            self.logger.info(f"--- Extracting JSON ---")
+            
+            extracted_json = self.extract_json_string(response.content)
+            if extracted_json is None:
+                self.logger.warning("No valid JSON found in response, using fallback")
+                return self._extract_entities_rule_based(query)
+            
+            self.logger.info(f"Extracted JSON Content:")
+            self.logger.info(f"{extracted_json}")
+            self.logger.info(f"=== END JSON EXTRACTION ===")
+            
+            entities_data = json.loads(extracted_json)
+            
+            self.logger.info(f"=== PARSED ENTITIES for {self.agent_name} ===")
+            self.logger.info(f"Locations: {entities_data.get('locations', [])}")
+            self.logger.info(f"Parameters: {entities_data.get('parameters', [])}")
+            self.logger.info(f"Time Range: {entities_data.get('time_range')}")
+            self.logger.info(f"Depth Range: {entities_data.get('depth_range')}")
+            self.logger.info(f"Comparison Intent: {entities_data.get('comparison_intent', 'none')}")
+            self.logger.info(f"Statistical Operations: {entities_data.get('statistical_operations', [])}")
+            self.logger.info(f"=== END PARSED ENTITIES ===")
             
             return ExtractedEntities(
                 locations=entities_data.get('locations', []),

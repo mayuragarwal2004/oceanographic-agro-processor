@@ -253,12 +253,29 @@ class AgentOrchestrator(BaseAgent):
                 agent_input = await self._prepare_agent_input(agent_name, context, previous_results)
                 agent_context = await self._prepare_agent_context(agent_name, context, previous_results)
                 
+                # Log agent input data
+                self.logger.info(f"=== AGENT INPUT for {agent_name} ===")
+                self.logger.info(f"Input Data Type: {type(agent_input)}")
+                self.logger.info(f"Input Data: {agent_input}")
+                self.logger.info(f"Context: {agent_context}")
+                self.logger.info(f"=== END AGENT INPUT ===")
+                
                 # Execute agent with timeout
                 self.logger.info(f"Executing agent: {agent_name}")
                 result = await asyncio.wait_for(
                     self.agents[agent_name].process(agent_input, agent_context),
                     timeout=self.timeout_per_agent
                 )
+                
+                # Log agent output data
+                self.logger.info(f"=== AGENT OUTPUT for {agent_name} ===")
+                self.logger.info(f"Success: {result.success}")
+                self.logger.info(f"Data Type: {type(result.data)}")
+                self.logger.info(f"Data: {result.data}")
+                self.logger.info(f"Metadata: {result.metadata}")
+                if result.errors:
+                    self.logger.info(f"Errors: {result.errors}")
+                self.logger.info(f"=== END AGENT OUTPUT ===")
                 
                 results[agent_name] = result
                 context.intermediate_results[agent_name] = result
@@ -354,8 +371,9 @@ class AgentOrchestrator(BaseAgent):
         # Geospatial Agent - gets locations from query understanding
         elif agent_name == 'geospatial':
             if 'query_understanding' in previous_results:
-                entities = previous_results['query_understanding'].data.get('entities', {})
-                return entities.get('locations', [])
+                entities = previous_results['query_understanding'].data.get('entities')
+                if entities and hasattr(entities, 'locations'):
+                    return entities.locations
             return []
         
         # Data Retrieval Agent - gets operator graph and locations
@@ -420,7 +438,8 @@ class AgentOrchestrator(BaseAgent):
         if agent_name in ['analysis', 'visualization', 'critic', 'conversation']:
             if 'query_understanding' in previous_results:
                 agent_context['operator_graph'] = previous_results['query_understanding'].data.get('operator_graph', {})
-                agent_context['entities'] = previous_results['query_understanding'].data.get('entities', {})
+                entities = previous_results['query_understanding'].data.get('entities')
+                agent_context['entities'] = entities if entities else {}
         
         return agent_context
     

@@ -227,6 +227,8 @@ class DataRetrievalAgent(BaseAgent):
     async def _generate_query_plan(self, operator_graph: Dict[str, Any], locations: List[Dict[str, Any]]) -> QueryPlan:
         """Generate SQL query plan from operator graph"""
         
+        print(operator_graph)
+        
         nodes = operator_graph.get('nodes', [])
         
         # Find data retrieval node (should be first in the graph)

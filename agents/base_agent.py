@@ -76,7 +76,7 @@ class BaseAgent(ABC):
             self.logger.addHandler(handler)
     
     async def call_llm(
-        self, 
+        self,
         messages: List[LLMMessage],
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
@@ -87,7 +87,14 @@ class BaseAgent(ABC):
         temp = temperature or self.config.llm_config.temperature
         tokens = max_tokens or self.config.llm_config.max_tokens
         
-        self.logger.debug(f"Calling LLM with {len(messages)} messages")
+        # Log the raw input to LLM
+        self.logger.info(f"=== LLM INPUT for {self.agent_name} ===")
+        for i, message in enumerate(messages):
+            self.logger.info(f"Message {i+1} [{message.role}]:")
+            self.logger.info(f"{message.content}")
+            self.logger.info(f"--- End Message {i+1} ---")
+        self.logger.info(f"Temperature: {temp}, Max Tokens: {tokens}")
+        self.logger.info(f"=== END LLM INPUT ===")
         
         try:
             response = await self.llm.generate(
@@ -97,13 +104,36 @@ class BaseAgent(ABC):
                 **kwargs
             )
             
-            self.logger.debug(f"LLM response received: {len(response.content)} characters")
+            # Log the raw output from LLM
+            self.logger.info(f"=== LLM RAW OUTPUT for {self.agent_name} ===")
+            self.logger.info(f"Content ({len(response.content)} chars):")
+            self.logger.info(f"{response.content}")
+            # self.logger.info(f"Model: {response.model}")
+            # self.logger.info(f"Finish Reason: {response.finish_reason}")
+            if hasattr(response, 'usage') and response.usage:
+                self.logger.info(f"Usage: {response.usage}")
+            self.logger.info(f"=== END LLM RAW OUTPUT ===")
+            
             return response
             
         except Exception as e:
             self.logger.error(f"LLM call failed: {str(e)}")
             raise e
-    
+
+    def extract_json_string(self, s: str) -> str:
+        """
+        Extracts the JSON substring from a string by finding the first '{'
+        and the last '}'.
+        Returns None if no valid JSON block is found.
+        """
+        start = s.find("{")
+        end = s.rfind("}")
+        
+        if start == -1 or end == -1 or start > end:
+            return None  # No valid JSON found
+        
+        return s[start:end+1]
+
     def create_system_message(self, content: str) -> LLMMessage:
         """Create a system message"""
         return LLMMessage(role="system", content=content)
