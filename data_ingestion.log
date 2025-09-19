@@ -1,0 +1,216 @@
+2025-09-20 01:39:55,756 - INFO - 🔗 Connecting to database: localhost:5432/oceanographic_data
+2025-09-20 01:39:55,767 - INFO - ✅ Database connection established
+2025-09-20 01:39:55,767 - INFO - 📁 Processing file: nodc_D53546_001.nc
+2025-09-20 01:39:55,778 - ERROR - Error upserting platform D53546: null value in column "id" of relation "platforms" violates not-null constraint
+DETAIL:  Failing row contains (null, D53546, null, null, null, null, CSIRO, null, null, null, 2025-09-20 01:39:55.777, null).
+2025-09-20 01:39:55,778 - ERROR - ❌ Error processing argo_data/1999/10/nodc_D53546_001.nc: null value in column "id" of relation "platforms" violates not-null constraint
+DETAIL:  Failing row contains (null, D53546, null, null, null, null, CSIRO, null, null, null, 2025-09-20 01:39:55.777, null).
+2025-09-20 01:39:55,780 - INFO - 📕 Database connection closed
+2025-09-20 01:40:29,181 - INFO - 🔗 Connecting to database: localhost:5432/oceanographic_data
+2025-09-20 01:40:29,189 - INFO - ✅ Database connection established
+2025-09-20 01:40:29,190 - INFO - 📁 Processing file: nodc_D53546_001.nc
+2025-09-20 01:40:29,194 - ERROR - Error upserting platform D53546: null value in column "id" of relation "platforms" violates not-null constraint
+DETAIL:  Failing row contains (null, D53546, null, null, null, null, CSIRO, null, null, null, 2025-09-20 01:40:29.194, null).
+2025-09-20 01:40:29,194 - ERROR - ❌ Error processing argo_data/1999/10/nodc_D53546_001.nc: null value in column "id" of relation "platforms" violates not-null constraint
+DETAIL:  Failing row contains (null, D53546, null, null, null, null, CSIRO, null, null, null, 2025-09-20 01:40:29.194, null).
+2025-09-20 01:40:29,197 - INFO - 📕 Database connection closed
+2025-09-20 01:41:49,098 - INFO - 🔗 Connecting to database: localhost:5432/oceanographic_data
+2025-09-20 01:41:49,110 - INFO - ✅ Database connection established
+2025-09-20 01:41:49,110 - INFO - 📁 Processing file: nodc_D53546_001.nc
+2025-09-20 01:41:49,118 - ERROR - Error upserting platform D53546: null value in column "updated_at" of relation "platforms" violates not-null constraint
+DETAIL:  Failing row contains (1ef8c027-1102-4cf6-a5a5-222d98c205c4, D53546, null, null, null, null, CSIRO, null, null, null, 2025-09-20 01:41:49.118, null).
+2025-09-20 01:41:49,118 - ERROR - ❌ Error processing argo_data/1999/10/nodc_D53546_001.nc: null value in column "updated_at" of relation "platforms" violates not-null constraint
+DETAIL:  Failing row contains (1ef8c027-1102-4cf6-a5a5-222d98c205c4, D53546, null, null, null, null, CSIRO, null, null, null, 2025-09-20 01:41:49.118, null).
+2025-09-20 01:41:49,120 - INFO - 📕 Database connection closed
+2025-09-20 01:42:43,661 - INFO - 🔗 Connecting to database: localhost:5432/oceanographic_data
+2025-09-20 01:42:43,670 - INFO - ✅ Database connection established
+2025-09-20 01:42:43,671 - INFO - 📁 Processing file: nodc_D53546_001.nc
+2025-09-20 01:42:43,685 - DEBUG - Platform ID: e2fb9eb1-b6ff-4f06-a175-cd82376c6de3
+2025-09-20 01:42:43,685 - ERROR - Error inserting profile: invalid input for query argument $3: datetime.datetime(2025, 9, 19, 20, 12, 4... (can't subtract offset-naive and offset-aware datetimes)
+2025-09-20 01:42:43,686 - ERROR - ❌ Error processing argo_data/1999/10/nodc_D53546_001.nc: invalid input for query argument $3: datetime.datetime(2025, 9, 19, 20, 12, 4... (can't subtract offset-naive and offset-aware datetimes)
+2025-09-20 01:42:43,688 - INFO - 📕 Database connection closed
+2025-09-20 01:45:17,742 - INFO - 🔗 Connecting to database: localhost:5432/oceanographic_data
+2025-09-20 01:45:17,755 - INFO - ✅ Database connection established
+2025-09-20 01:45:17,756 - INFO - 📁 Processing file: nodc_D53546_001.nc
+2025-09-20 01:45:17,762 - DEBUG - Platform ID: e2fb9eb1-b6ff-4f06-a175-cd82376c6de3
+2025-09-20 01:45:17,767 - ERROR - Error inserting profile: invalid input for query argument $3: datetime.datetime(1999, 10, 25, 7, 24, 4... (can't subtract offset-naive and offset-aware datetimes)
+2025-09-20 01:45:17,767 - ERROR - ❌ Error processing argo_data/1999/10/nodc_D53546_001.nc: invalid input for query argument $3: datetime.datetime(1999, 10, 25, 7, 24, 4... (can't subtract offset-naive and offset-aware datetimes)
+2025-09-20 01:45:17,770 - INFO - 📕 Database connection closed
+2025-09-20 01:45:41,756 - INFO - 🔗 Connecting to database: localhost:5432/oceanographic_data
+2025-09-20 01:45:41,764 - INFO - ✅ Database connection established
+2025-09-20 01:45:41,764 - INFO - 📁 Processing file: nodc_D53546_001.nc
+2025-09-20 01:45:41,778 - DEBUG - Platform ID: e2fb9eb1-b6ff-4f06-a175-cd82376c6de3
+2025-09-20 01:45:41,782 - ERROR - Error inserting profile: invalid input for query argument $3: datetime.datetime(1999, 10, 25, 7, 24, 4... (can't subtract offset-naive and offset-aware datetimes)
+2025-09-20 01:45:41,782 - ERROR - ❌ Error processing argo_data/1999/10/nodc_D53546_001.nc: invalid input for query argument $3: datetime.datetime(1999, 10, 25, 7, 24, 4... (can't subtract offset-naive and offset-aware datetimes)
+2025-09-20 01:45:41,785 - INFO - 📕 Database connection closed
+2025-09-20 01:46:18,135 - INFO - 🔗 Connecting to database: localhost:5432/oceanographic_data
+2025-09-20 01:46:18,145 - INFO - ✅ Database connection established
+2025-09-20 01:46:18,145 - INFO - 📁 Processing file: nodc_D53546_001.nc
+2025-09-20 01:46:18,153 - DEBUG - Platform ID: e2fb9eb1-b6ff-4f06-a175-cd82376c6de3
+2025-09-20 01:46:18,156 - DEBUG - Inserting profile with date: 1999-10-25 07:24:49.999992+00:00 (type: <class 'datetime.datetime'>)
+2025-09-20 01:46:18,157 - ERROR - Error inserting profile: invalid input for query argument $3: datetime.datetime(1999, 10, 25, 7, 24, 4... (can't subtract offset-naive and offset-aware datetimes)
+2025-09-20 01:46:18,157 - ERROR - ❌ Error processing argo_data/1999/10/nodc_D53546_001.nc: invalid input for query argument $3: datetime.datetime(1999, 10, 25, 7, 24, 4... (can't subtract offset-naive and offset-aware datetimes)
+2025-09-20 01:46:18,161 - INFO - 📕 Database connection closed
+2025-09-20 01:46:41,233 - INFO - 🔗 Connecting to database: localhost:5432/oceanographic_data
+2025-09-20 01:46:41,241 - INFO - ✅ Database connection established
+2025-09-20 01:46:41,242 - INFO - 📁 Processing file: nodc_D53546_001.nc
+2025-09-20 01:46:41,254 - DEBUG - Platform ID: e2fb9eb1-b6ff-4f06-a175-cd82376c6de3
+2025-09-20 01:46:41,258 - DEBUG - Inserting profile with date: 1999-10-25 07:24:49+00:00 (type: <class 'datetime.datetime'>)
+2025-09-20 01:46:41,258 - ERROR - Error inserting profile: invalid input for query argument $3: datetime.datetime(1999, 10, 25, 7, 24, 4... (can't subtract offset-naive and offset-aware datetimes)
+2025-09-20 01:46:41,259 - ERROR - ❌ Error processing argo_data/1999/10/nodc_D53546_001.nc: invalid input for query argument $3: datetime.datetime(1999, 10, 25, 7, 24, 4... (can't subtract offset-naive and offset-aware datetimes)
+2025-09-20 01:46:41,261 - INFO - 📕 Database connection closed
+2025-09-20 01:47:07,211 - INFO - 🔗 Connecting to database: localhost:5432/oceanographic_data
+2025-09-20 01:47:07,220 - INFO - ✅ Database connection established
+2025-09-20 01:47:07,221 - INFO - 📁 Processing file: nodc_D53546_001.nc
+2025-09-20 01:47:07,226 - DEBUG - Platform ID: e2fb9eb1-b6ff-4f06-a175-cd82376c6de3
+2025-09-20 01:47:07,230 - DEBUG - Inserting profile with date: 1999-10-25 07:24:49+00:00 (type: <class 'datetime.datetime'>)
+2025-09-20 01:47:07,253 - ERROR - Error inserting profile: could not determine data type of parameter $7
+2025-09-20 01:47:07,253 - ERROR - ❌ Error processing argo_data/1999/10/nodc_D53546_001.nc: could not determine data type of parameter $7
+2025-09-20 01:47:07,258 - INFO - 📕 Database connection closed
+2025-09-20 01:47:26,532 - INFO - 🔗 Connecting to database: localhost:5432/oceanographic_data
+2025-09-20 01:47:26,541 - INFO - ✅ Database connection established
+2025-09-20 01:47:26,541 - INFO - 📁 Processing file: nodc_D53546_001.nc
+2025-09-20 01:47:26,546 - DEBUG - Platform ID: e2fb9eb1-b6ff-4f06-a175-cd82376c6de3
+2025-09-20 01:47:26,549 - DEBUG - Inserting profile with date: 1999-10-25 07:24:49+00:00 (type: <class 'datetime.datetime'>)
+2025-09-20 01:47:26,550 - DEBUG - Lat/Lon: -13.029/119.97 (types: <class 'float'>, <class 'float'>)
+2025-09-20 01:47:26,559 - ERROR - Error inserting profile: could not determine data type of parameter $7
+2025-09-20 01:47:26,560 - ERROR - ❌ Error processing argo_data/1999/10/nodc_D53546_001.nc: could not determine data type of parameter $7
+2025-09-20 01:47:26,564 - INFO - 📕 Database connection closed
+2025-09-20 01:48:17,162 - INFO - 🔗 Connecting to database: localhost:5432/oceanographic_data
+2025-09-20 01:48:17,173 - INFO - ✅ Database connection established
+2025-09-20 01:48:17,174 - INFO - 📁 Processing file: nodc_D53546_001.nc
+2025-09-20 01:48:17,184 - DEBUG - Platform ID: e2fb9eb1-b6ff-4f06-a175-cd82376c6de3
+2025-09-20 01:48:17,188 - DEBUG - Inserting profile with date: 1999-10-25 07:24:49+00:00 (type: <class 'datetime.datetime'>)
+2025-09-20 01:48:17,188 - DEBUG - Lat/Lon: -13.029/119.97 (types: <class 'float'>, <class 'float'>)
+2025-09-20 01:48:17,204 - ERROR - Error inserting profile: could not determine data type of parameter $7
+2025-09-20 01:48:17,205 - ERROR - ❌ Error processing argo_data/1999/10/nodc_D53546_001.nc: could not determine data type of parameter $7
+2025-09-20 01:48:17,209 - INFO - 📕 Database connection closed
+2025-09-20 01:48:58,098 - INFO - 🔗 Connecting to database: localhost:5432/oceanographic_data
+2025-09-20 01:48:58,108 - INFO - ✅ Database connection established
+2025-09-20 01:48:58,108 - INFO - 📁 Processing file: nodc_D53546_001.nc
+2025-09-20 01:48:58,113 - DEBUG - Platform ID: e2fb9eb1-b6ff-4f06-a175-cd82376c6de3
+2025-09-20 01:48:58,116 - DEBUG - Inserting profile with date: 1999-10-25 07:24:49+00:00 (type: <class 'datetime.datetime'>)
+2025-09-20 01:48:58,116 - DEBUG - Lat/Lon: -13.029/119.97 (types: <class 'float'>, <class 'float'>)
+2025-09-20 01:48:58,116 - DEBUG - Parameter $1: 8da99496-3221-4fe9-b948-438598177c44 (type: <class 'str'>)
+2025-09-20 01:48:58,116 - DEBUG - Parameter $2: e2fb9eb1-b6ff-4f06-a175-cd82376c6de3 (type: <class 'str'>)
+2025-09-20 01:48:58,116 - DEBUG - Parameter $3: 1 (type: <class 'int'>)
+2025-09-20 01:48:58,116 - DEBUG - Parameter $4: 1999-10-25 07:24:49+00:00 (type: <class 'datetime.datetime'>)
+2025-09-20 01:48:58,116 - DEBUG - Parameter $5: A (type: <class 'str'>)
+2025-09-20 01:48:58,116 - DEBUG - Parameter $6: D (type: <class 'str'>)
+2025-09-20 01:48:58,116 - DEBUG - Parameter $7: -13.029 (type: <class 'float'>)
+2025-09-20 01:48:58,117 - DEBUG - Parameter $8: 119.97 (type: <class 'float'>)
+2025-09-20 01:48:58,117 - DEBUG - Parameter $9: 1 (type: <class 'int'>)
+2025-09-20 01:48:58,117 - DEBUG - Parameter $10: A (type: <class 'str'>)
+2025-09-20 01:48:58,117 - DEBUG - Parameter $11: B (type: <class 'str'>)
+2025-09-20 01:48:58,117 - DEBUG - Parameter $12: B (type: <class 'str'>)
+2025-09-20 01:48:58,117 - DEBUG - Parameter $13: 18194.30891203694 (type: <class 'float'>)
+2025-09-20 01:48:58,117 - DEBUG - Parameter $14: 1 (type: <class 'int'>)
+2025-09-20 01:48:58,117 - DEBUG - Parameter $15: 18194.30891203694 (type: <class 'float'>)
+2025-09-20 01:48:58,117 - DEBUG - Parameter $16: None (type: <class 'NoneType'>)
+2025-09-20 01:48:58,117 - DEBUG - Parameter $17: 1 (type: <class 'int'>)
+2025-09-20 01:48:58,117 - DEBUG - Parameter $18: None (type: <class 'NoneType'>)
+2025-09-20 01:48:58,117 - DEBUG - Parameter $19: None (type: <class 'NoneType'>)
+2025-09-20 01:48:58,117 - DEBUG - Parameter $20: None (type: <class 'NoneType'>)
+2025-09-20 01:48:58,117 - DEBUG - Parameter $21: n130290_1199700 (type: <class 'str'>)
+2025-09-20 01:48:58,128 - ERROR - Error inserting profile: could not determine data type of parameter $7
+2025-09-20 01:48:58,128 - ERROR - ❌ Error processing argo_data/1999/10/nodc_D53546_001.nc: could not determine data type of parameter $7
+2025-09-20 01:48:58,131 - INFO - 📕 Database connection closed
+2025-09-20 01:49:20,481 - INFO - 🔗 Connecting to database: localhost:5432/oceanographic_data
+2025-09-20 01:49:20,489 - INFO - ✅ Database connection established
+2025-09-20 01:49:20,489 - INFO - 📁 Processing file: nodc_D53546_001.nc
+2025-09-20 01:49:20,498 - ERROR - Error inserting profile: invalid input for query argument $4: datetime.datetime(1999, 10, 25, 7, 24, 4... (can't subtract offset-naive and offset-aware datetimes)
+2025-09-20 01:49:20,498 - ERROR - ❌ Error processing argo_data/1999/10/nodc_D53546_001.nc: invalid input for query argument $4: datetime.datetime(1999, 10, 25, 7, 24, 4... (can't subtract offset-naive and offset-aware datetimes)
+2025-09-20 01:49:20,501 - INFO - 📕 Database connection closed
+2025-09-20 01:49:41,447 - INFO - 🔗 Connecting to database: localhost:5432/oceanographic_data
+2025-09-20 01:49:41,456 - INFO - ✅ Database connection established
+2025-09-20 01:49:41,456 - INFO - 📁 Processing file: nodc_D53546_001.nc
+2025-09-20 01:49:41,485 - INFO - ✅ Successfully processed nodc_D53546_001.nc
+2025-09-20 01:49:41,489 - INFO - 📕 Database connection closed
+2025-09-20 01:50:23,620 - INFO - 🔗 Connecting to database: localhost:5432/oceanographic_data
+2025-09-20 01:50:23,629 - INFO - ✅ Database connection established
+2025-09-20 01:50:23,630 - INFO - 📁 Processing file: nodc_D53553_001.nc
+2025-09-20 01:50:23,634 - DEBUG - Platform ID: 79c9f080-737e-41ef-b4ed-15fc9aa8f167
+2025-09-20 01:50:23,637 - DEBUG - Inserting profile with date: 1999-10-21 11:46:17+00:00 (type: <class 'datetime.datetime'>)
+2025-09-20 01:50:23,637 - DEBUG - Lat/Lon: -12.29/106.734 (types: <class 'float'>, <class 'float'>)
+2025-09-20 01:50:23,637 - DEBUG - Parameter $1: 9303923f-7beb-4c1a-be91-2fe1e87e516c (type: <class 'str'>)
+2025-09-20 01:50:23,637 - DEBUG - Parameter $2: 79c9f080-737e-41ef-b4ed-15fc9aa8f167 (type: <class 'str'>)
+2025-09-20 01:50:23,637 - DEBUG - Parameter $3: 1 (type: <class 'int'>)
+2025-09-20 01:50:23,637 - DEBUG - Parameter $4: 1999-10-21 11:46:17 (type: <class 'datetime.datetime'>)
+2025-09-20 01:50:23,637 - DEBUG - Parameter $5: A (type: <class 'str'>)
+2025-09-20 01:50:23,637 - DEBUG - Parameter $6: D (type: <class 'str'>)
+2025-09-20 01:50:23,637 - DEBUG - Parameter $7: -12.29 (type: <class 'float'>)
+2025-09-20 01:50:23,638 - DEBUG - Parameter $8: 106.734 (type: <class 'float'>)
+2025-09-20 01:50:23,638 - DEBUG - Parameter $9: 1 (type: <class 'int'>)
+2025-09-20 01:50:23,638 - DEBUG - Parameter $10: A (type: <class 'str'>)
+2025-09-20 01:50:23,638 - DEBUG - Parameter $11: A (type: <class 'str'>)
+2025-09-20 01:50:23,638 - DEBUG - Parameter $12: A (type: <class 'str'>)
+2025-09-20 01:50:23,638 - DEBUG - Parameter $13: 18190.490486111026 (type: <class 'float'>)
+2025-09-20 01:50:23,638 - DEBUG - Parameter $14: 1 (type: <class 'int'>)
+2025-09-20 01:50:23,638 - DEBUG - Parameter $15: 18190.490486111026 (type: <class 'float'>)
+2025-09-20 01:50:23,638 - DEBUG - Parameter $16: None (type: <class 'NoneType'>)
+2025-09-20 01:50:23,638 - DEBUG - Parameter $17: 1 (type: <class 'int'>)
+2025-09-20 01:50:23,638 - DEBUG - Parameter $18: None (type: <class 'NoneType'>)
+2025-09-20 01:50:23,638 - DEBUG - Parameter $19: None (type: <class 'NoneType'>)
+2025-09-20 01:50:23,638 - DEBUG - Parameter $20: None (type: <class 'NoneType'>)
+2025-09-20 01:50:23,638 - DEBUG - Parameter $21: n122900_1067340 (type: <class 'str'>)
+2025-09-20 01:50:23,650 - DEBUG - Profile ID: 9303923f-7beb-4c1a-be91-2fe1e87e516c
+2025-09-20 01:50:23,650 - INFO - ✅ Successfully processed nodc_D53553_001.nc
+2025-09-20 01:50:23,654 - INFO - 📕 Database connection closed
+2025-09-20 01:51:11,898 - INFO - 🔗 Connecting to database: localhost:5432/oceanographic_data
+2025-09-20 01:51:11,907 - INFO - ✅ Database connection established
+2025-09-20 01:51:11,907 - INFO - 📁 Processing file: nodc_D53554_001.nc
+2025-09-20 01:51:11,920 - DEBUG - Platform ID: 69010e57-0868-4839-ac82-a7d0de1ec892
+2025-09-20 01:51:11,923 - DEBUG - Inserting profile with date: 1999-10-22 21:05:46+00:00 (type: <class 'datetime.datetime'>)
+2025-09-20 01:51:11,923 - DEBUG - Lat/Lon: -12.167/111.887 (types: <class 'float'>, <class 'float'>)
+2025-09-20 01:51:11,923 - DEBUG - Parameter $1: d8afccaa-dc3e-4a8f-9acd-a7b4dfeabed9 (type: <class 'str'>)
+2025-09-20 01:51:11,924 - DEBUG - Parameter $2: 69010e57-0868-4839-ac82-a7d0de1ec892 (type: <class 'str'>)
+2025-09-20 01:51:11,924 - DEBUG - Parameter $3: 1 (type: <class 'int'>)
+2025-09-20 01:51:11,924 - DEBUG - Parameter $4: 1999-10-22 21:05:46 (type: <class 'datetime.datetime'>)
+2025-09-20 01:51:11,924 - DEBUG - Parameter $5: A (type: <class 'str'>)
+2025-09-20 01:51:11,924 - DEBUG - Parameter $6: D (type: <class 'str'>)
+2025-09-20 01:51:11,924 - DEBUG - Parameter $7: -12.167 (type: <class 'float'>)
+2025-09-20 01:51:11,924 - DEBUG - Parameter $8: 111.887 (type: <class 'float'>)
+2025-09-20 01:51:11,924 - DEBUG - Parameter $9: 1 (type: <class 'int'>)
+2025-09-20 01:51:11,924 - DEBUG - Parameter $10: B (type: <class 'str'>)
+2025-09-20 01:51:11,924 - DEBUG - Parameter $11: B (type: <class 'str'>)
+2025-09-20 01:51:11,924 - DEBUG - Parameter $12: B (type: <class 'str'>)
+2025-09-20 01:51:11,924 - DEBUG - Parameter $13: 18191.879004629795 (type: <class 'float'>)
+2025-09-20 01:51:11,924 - DEBUG - Parameter $14: 1 (type: <class 'int'>)
+2025-09-20 01:51:11,924 - DEBUG - Parameter $15: 18191.879004629795 (type: <class 'float'>)
+2025-09-20 01:51:11,924 - DEBUG - Parameter $16: None (type: <class 'NoneType'>)
+2025-09-20 01:51:11,924 - DEBUG - Parameter $17: 1 (type: <class 'int'>)
+2025-09-20 01:51:11,924 - DEBUG - Parameter $18: None (type: <class 'NoneType'>)
+2025-09-20 01:51:11,924 - DEBUG - Parameter $19: None (type: <class 'NoneType'>)
+2025-09-20 01:51:11,924 - DEBUG - Parameter $20: None (type: <class 'NoneType'>)
+2025-09-20 01:51:11,924 - DEBUG - Parameter $21: n121670_1118870 (type: <class 'str'>)
+2025-09-20 01:51:11,936 - DEBUG - Profile ID: d8afccaa-dc3e-4a8f-9acd-a7b4dfeabed9
+2025-09-20 01:51:11,936 - DEBUG - Number of levels: 50
+2025-09-20 01:51:12,060 - DEBUG - Extracted 50 measurements for profile 0
+2025-09-20 01:51:12,076 - DEBUG - Inserted 50 measurements
+2025-09-20 01:51:12,076 - INFO - ✅ Successfully processed nodc_D53554_001.nc
+2025-09-20 01:51:12,080 - INFO - 📕 Database connection closed
+2025-09-20 01:51:42,680 - INFO - 🔗 Connecting to database: localhost:5432/oceanographic_data
+2025-09-20 01:51:42,687 - INFO - ✅ Database connection established
+2025-09-20 01:51:42,687 - INFO - 🔍 Scanning directory: argo_data/1999/10
+2025-09-20 01:51:42,687 - INFO - 📊 Found 5 NetCDF files
+2025-09-20 01:51:42,687 - INFO - 📁 Processing file: nodc_D53553_001.nc
+2025-09-20 01:51:42,706 - ERROR - Error inserting profile: duplicate key value violates unique constraint "profiles_platform_id_cycle_number_profile_date_key"
+DETAIL:  Key (platform_id, cycle_number, profile_date)=(79c9f080-737e-41ef-b4ed-15fc9aa8f167, 1, 1999-10-21 11:46:17) already exists.
+2025-09-20 01:51:42,707 - ERROR - ❌ Error processing argo_data/1999/10/nodc_D53553_001.nc: duplicate key value violates unique constraint "profiles_platform_id_cycle_number_profile_date_key"
+DETAIL:  Key (platform_id, cycle_number, profile_date)=(79c9f080-737e-41ef-b4ed-15fc9aa8f167, 1, 1999-10-21 11:46:17) already exists.
+2025-09-20 01:51:42,707 - INFO - 📈 Progress: 0/5 files processed
+2025-09-20 01:51:42,707 - INFO - 📁 Processing file: nodc_D53555_001.nc
+2025-09-20 01:51:42,865 - INFO - ✅ Successfully processed nodc_D53555_001.nc
+2025-09-20 01:51:42,865 - INFO - 📁 Processing file: nodc_D53546_001.nc
+2025-09-20 01:51:42,871 - ERROR - Error inserting profile: duplicate key value violates unique constraint "profiles_platform_id_cycle_number_profile_date_key"
+DETAIL:  Key (platform_id, cycle_number, profile_date)=(e2fb9eb1-b6ff-4f06-a175-cd82376c6de3, 1, 1999-10-25 07:24:49) already exists.
+2025-09-20 01:51:42,872 - ERROR - ❌ Error processing argo_data/1999/10/nodc_D53546_001.nc: duplicate key value violates unique constraint "profiles_platform_id_cycle_number_profile_date_key"
+DETAIL:  Key (platform_id, cycle_number, profile_date)=(e2fb9eb1-b6ff-4f06-a175-cd82376c6de3, 1, 1999-10-25 07:24:49) already exists.
+2025-09-20 01:51:42,872 - INFO - 📁 Processing file: nodc_D53553_002.nc
+2025-09-20 01:51:43,014 - INFO - ✅ Successfully processed nodc_D53553_002.nc
+2025-09-20 01:51:43,014 - INFO - 📁 Processing file: nodc_D53554_001.nc
+2025-09-20 01:51:43,022 - ERROR - Error inserting profile: duplicate key value violates unique constraint "profiles_platform_id_cycle_number_profile_date_key"
+DETAIL:  Key (platform_id, cycle_number, profile_date)=(69010e57-0868-4839-ac82-a7d0de1ec892, 1, 1999-10-22 21:05:46) already exists.
+2025-09-20 01:51:43,022 - ERROR - ❌ Error processing argo_data/1999/10/nodc_D53554_001.nc: duplicate key value violates unique constraint "profiles_platform_id_cycle_number_profile_date_key"
+DETAIL:  Key (platform_id, cycle_number, profile_date)=(69010e57-0868-4839-ac82-a7d0de1ec892, 1, 1999-10-22 21:05:46) already exists.
+2025-09-20 01:51:43,026 - INFO - 📕 Database connection closed

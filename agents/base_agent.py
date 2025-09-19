@@ -1,0 +1,176 @@
+"""
+Base Agent Class
+Provides common functionality for all agents in the system
+"""
+
+import asyncio
+import logging
+from abc import ABC, abstractmethod
+from typing import Dict, Any, List, Optional
+from dataclasses import dataclass
+
+from .llm import BaseLLMConnector, LLMMessage, LLMResponse, LLMConnectorFactory
+from .config import AgentSystemConfig
+
+@dataclass
+class AgentResult:
+    """Result returned by an agent"""
+    success: bool
+    data: Any
+    metadata: Dict[str, Any]
+    errors: List[str]
+    agent_name: str
+    
+    @classmethod
+    def success_result(cls, agent_name: str, data: Any, metadata: Dict[str, Any] = None) -> 'AgentResult':
+        return cls(
+            success=True,
+            data=data,
+            metadata=metadata or {},
+            errors=[],
+            agent_name=agent_name
+        )
+    
+    @classmethod
+    def error_result(cls, agent_name: str, errors: List[str], data: Any = None) -> 'AgentResult':
+        return cls(
+            success=False,
+            data=data,
+            metadata={},
+            errors=errors,
+            agent_name=agent_name
+        )
+
+class BaseAgent(ABC):
+    """Base class for all agents in the system"""
+    
+    def __init__(self, config: AgentSystemConfig, agent_name: str):
+        self.config = config
+        self.agent_name = agent_name
+        self.logger = logging.getLogger(f"agent.{agent_name}")
+        
+        # Initialize LLM connector
+        self.llm = LLMConnectorFactory.create_connector(
+            provider=config.llm_config.provider,
+            api_key=config.llm_config.api_key,
+            model=config.llm_config.model,
+            timeout=config.llm_config.timeout,
+            max_retries=config.llm_config.max_retries
+        )
+        
+        self._setup_logging()
+    
+    def _setup_logging(self):
+        """Set up logging for the agent"""
+        if self.config.debug:
+            self.logger.setLevel(logging.DEBUG)
+        else:
+            self.logger.setLevel(logging.INFO)
+        
+        if not self.logger.handlers:
+            handler = logging.StreamHandler()
+            formatter = logging.Formatter(
+                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            )
+            handler.setFormatter(formatter)
+            self.logger.addHandler(handler)
+    
+    async def call_llm(
+        self, 
+        messages: List[LLMMessage],
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        **kwargs
+    ) -> LLMResponse:
+        """Call the LLM with error handling and logging"""
+        
+        temp = temperature or self.config.llm_config.temperature
+        tokens = max_tokens or self.config.llm_config.max_tokens
+        
+        self.logger.debug(f"Calling LLM with {len(messages)} messages")
+        
+        try:
+            response = await self.llm.generate(
+                messages=messages,
+                temperature=temp,
+                max_tokens=tokens,
+                **kwargs
+            )
+            
+            self.logger.debug(f"LLM response received: {len(response.content)} characters")
+            return response
+            
+        except Exception as e:
+            self.logger.error(f"LLM call failed: {str(e)}")
+            raise e
+    
+    def create_system_message(self, content: str) -> LLMMessage:
+        """Create a system message"""
+        return LLMMessage(role="system", content=content)
+    
+    def create_user_message(self, content: str) -> LLMMessage:
+        """Create a user message"""
+        return LLMMessage(role="user", content=content)
+    
+    def create_assistant_message(self, content: str) -> LLMMessage:
+        """Create an assistant message"""
+        return LLMMessage(role="assistant", content=content)
+    
+    @abstractmethod
+    async def process(self, input_data: Any, context: Dict[str, Any] = None) -> AgentResult:
+        """
+        Process input data and return a result
+        
+        Args:
+            input_data: The data to process
+            context: Additional context from other agents
+            
+        Returns:
+            AgentResult with the processing results
+        """
+        pass
+    
+    @abstractmethod
+    def get_capabilities(self) -> Dict[str, Any]:
+        """
+        Return information about what this agent can do
+        
+        Returns:
+            Dictionary describing agent capabilities
+        """
+        pass
+    
+    def validate_input(self, input_data: Any) -> List[str]:
+        """
+        Validate input data and return list of errors
+        
+        Args:
+            input_data: Data to validate
+            
+        Returns:
+            List of validation errors (empty if valid)
+        """
+        return []  # Base implementation accepts all input
+    
+    async def health_check(self) -> bool:
+        """
+        Check if the agent is healthy and ready to process requests
+        
+        Returns:
+            True if healthy, False otherwise
+        """
+        try:
+            # Test LLM connection
+            if not self.llm.validate_connection():
+                return False
+            
+            # Agent-specific health checks can be overridden
+            return await self._agent_health_check()
+            
+        except Exception as e:
+            self.logger.error(f"Health check failed: {str(e)}")
+            return False
+    
+    async def _agent_health_check(self) -> bool:
+        """Override this for agent-specific health checks"""
+        return True

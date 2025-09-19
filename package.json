@@ -1,0 +1,19 @@
+{
+  "devDependencies": {
+    "prisma": "^5.22.0"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0"
+  },
+  "name": "040float",
+  "version": "1.0.0",
+  "description": "A sophisticated multi-agent AI system for analyzing oceanographic data using natural language queries. Built specifically for NOAA GADR (Global Archive of Argo Data Repository) dataset analysis.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}

@@ -1,0 +1,242 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis]
+}
+
+// Platform/Float information - represents the physical float device
+model Platform {
+  id              String    @id @default(cuid())
+  platformNumber  String    @unique @map("platform_number")
+  platformType    String?   @map("platform_type")
+  floatSerial     String?   @map("float_serial")
+  projectName     String?   @map("project_name")
+  piName          String?   @map("pi_name")
+  institution     String?
+  dataCenter      String?   @map("data_center")
+  wmoInstType     String?   @map("wmo_inst_type")
+  firmwareVersion String?   @map("firmware_version")
+  
+  // Relationships
+  profiles Profile[]
+  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  
+  @@map("platforms")
+}
+
+// Profile represents one cycle/cast of measurements from a float
+model Profile {
+  id             String    @id @default(cuid())
+  platformId     String    @map("platform_id")
+  cycleNumber    Int       @map("cycle_number")
+  profileDate    DateTime  @map("profile_date")
+  direction      String?   // 'A' for ascending, 'D' for descending
+  dataMode       String?   @map("data_mode") // 'R' for real-time, 'D' for delayed mode, 'A' for adjusted
+  
+  // Geographic location - Enhanced with PostGIS
+  latitude       Float
+  longitude      Float
+  location       Unsupported("geometry(Point, 4326)")? // PostGIS Point geometry for efficient spatial queries
+  geohash        String?   // For alternative spatial indexing
+  
+  // Quality control
+  positionQc     Int?      @map("position_qc")
+  profilePresQc  String?   @map("profile_pres_qc")
+  profileTempQc  String?   @map("profile_temp_qc")
+  salQc  String?   @map("profile_psal_qc")
+  
+  // Measurement metadata
+  juld           Float?    // Julian date
+  juldQc         Int?      @map("juld_qc")
+  juldLocation   Float?    @map("juld_location")
+  
+  // Data processing info
+  dataStateIndicator      String?  @map("data_state_indicator")
+  configMissionNumber     Int?     @map("config_mission_number")
+  positioningSystem       String?  @map("positioning_system")
+  verticalSamplingScheme  String?  @map("vertical_sampling_scheme")
+  dcReference            String?  @map("dc_reference")
+  
+  // Relationships
+  platform          Platform @relation(fields: [platformId], references: [id], onDelete: Cascade)
+  measurements      Measurement[]
+  processingHistory ProcessingHistory[]
+  stationParameters StationParameter[]
+  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  
+  @@unique([platformId, cycleNumber, profileDate])
+  @@index([latitude, longitude]) // Traditional lat/lon index
+  @@index([location], type: Gist) // PostGIS spatial index for efficient geometric queries
+  @@index([profileDate])
+  @@index([geohash])
+  @@map("profiles")
+}
+
+// Individual measurements at specific pressure levels
+// Based on actual NOAA GADR dataset variables (only TEMP, PSAL, PRES are available)
+model Measurement {
+  id        String @id @default(cuid())
+  profileId String @map("profile_id")
+  
+  // Pressure level (primary coordinate)
+  pressure           Float?
+  pressureQc         Int?   @map("pressure_qc")
+  pressureAdjusted   Float? @map("pressure_adjusted")
+  pressureAdjustedQc Int?   @map("pressure_adjusted_qc")
+  pressureAdjustedError Float? @map("pressure_adjusted_error")
+  
+  // Temperature measurements (temp in lowercase as per NOAA GADR format)
+  temperature           Float? @map("temp")
+  temperatureQc         Int?   @map("temp_qc")
+  temperatureAdjusted   Float? @map("temp_adjusted")
+  temperatureAdjustedQc Int?   @map("temp_adjusted_qc")
+  temperatureAdjustedError Float? @map("temp_adjusted_error")
+  
+  // Salinity measurements (psal in lowercase as per NOAA GADR format)
+  salinity           Float? @map("psal")
+  salinityQc         Int?   @map("psal_qc")
+  salinityAdjusted   Float? @map("psal_adjusted")
+  salinityAdjustedQc Int?   @map("psal_adjusted_qc")
+  salinityAdjustedError Float? @map("psal_adjusted_error")
+  
+  // Note: The following biogeochemical variables are commented out as they
+  // are not present in the NOAA GADR dataset based on our analysis.
+  // Uncomment and add them if working with BGC-Argo data or other datasets.
+  
+  // // Dissolved oxygen measurements
+  // doxy           Float? @map("doxy")
+  // doxyQc         Int?   @map("doxy_qc")
+  // doxyAdjusted   Float? @map("doxy_adjusted")
+  // doxyAdjustedQc Int?   @map("doxy_adjusted_qc")
+  // doxyAdjustedError Float? @map("doxy_adjusted_error")
+  
+  // // Conductivity measurements
+  // conductivity           Float? @map("cndc")
+  // conductivityQc         Int?   @map("cndc_qc")
+  // conductivityAdjusted   Float? @map("cndc_adjusted")
+  // conductivityAdjustedQc Int?   @map("cndc_adjusted_qc")
+  // conductivityAdjustedError Float? @map("cndc_adjusted_error")
+  
+  // // pH measurements
+  // ph           Float? @map("ph_in_situ_total")
+  // phQc         Int?   @map("ph_in_situ_total_qc")
+  // phAdjusted   Float? @map("ph_in_situ_total_adjusted")
+  // phAdjustedQc Int?   @map("ph_in_situ_total_adjusted_qc")
+  // phAdjustedError Float? @map("ph_in_situ_total_adjusted_error")
+  
+  // // Nitrate measurements
+  // nitrate           Float? @map("nitrate")
+  // nitrateQc         Int?   @map("nitrate_qc")
+  // nitrateAdjusted   Float? @map("nitrate_adjusted")
+  // nitrateAdjustedQc Int?   @map("nitrate_adjusted_qc")
+  // nitrateAdjustedError Float? @map("nitrate_adjusted_error")
+  
+  // // Chlorophyll measurements
+  // chla           Float? @map("chla")
+  // chlaQc         Int?   @map("chla_qc")
+  // chlaAdjusted   Float? @map("chla_adjusted")
+  // chlaAdjustedQc Int?   @map("chla_adjusted_qc")
+  // chlaAdjustedError Float? @map("chla_adjusted_error")
+  
+  // Relationships
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  
+  @@index([profileId])
+  @@index([pressure])
+  @@index([temperature])
+  @@index([salinity])
+  @@map("measurements")
+}
+
+// Calibration information for instruments
+model Calibration {
+  id              String    @id @default(cuid())
+  platformNumber  String    @map("platform_number")
+  parameter       String    // e.g., 'TEMP', 'PSAL', 'PRES'
+  equation        String    // Calibration equation used
+  coefficient     String    // JSON string of calibration coefficients
+  calibrationDate DateTime? @map("calibration_date")
+  comment         String?
+  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  
+  @@index([platformNumber, parameter])
+  @@map("calibrations")
+}
+
+// Data processing history and metadata
+model ProcessingHistory {
+  id              String   @id @default(cuid())
+  profileId       String   @map("profile_id")
+  institution     String?  @map("institution")
+  step            String?  @map("step")
+  software        String?
+  softwareRelease String?  @map("software_release")
+  reference       String?
+  dateUpdate      DateTime @map("date_update")
+  action          String   // e.g., 'QC', 'IP', 'CF'
+  parameter       String?  // Parameter that action was performed on
+  startPressure   Float?   @map("start_pressure")
+  stopPressure    Float?   @map("stop_pressure")
+  previousValue   Float?   @map("previous_value")
+  qcTest          String?  @map("qc_test")
+  
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  @@index([profileId])
+  @@map("processing_history")
+}
+
+// Quality control flags lookup table
+model QcFlag {
+  id          Int    @id
+  description String
+  meaning     String
+  
+  @@map("qc_flags")
+}
+
+// Ocean regions for efficient spatial grouping - can be used for regional analysis
+model OceanRegion {
+  id          String @id @default(cuid())
+  name        String @unique // e.g., 'North Atlantic', 'Pacific Equatorial', 'Indian Ocean'
+  code        String @unique // e.g., 'NATL', 'PEQU', 'INDO'
+  boundary    Unsupported("geometry(Polygon, 4326)") // PostGIS polygon for region boundaries
+  description String?
+  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  
+  @@index([boundary], type: Gist) // Spatial index for region boundary queries
+  @@map("ocean_regions")
+}
+
+// Station parameters - tracks which parameters are available for each profile
+model StationParameter {
+  id        String @id @default(cuid())
+  profileId String @map("profile_id")
+  parameter String // e.g., 'PRES', 'TEMP', 'PSAL'
+  
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  
+  @@unique([profileId, parameter])
+  @@map("station_parameters")
+}
