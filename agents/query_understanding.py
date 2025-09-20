@@ -23,6 +23,7 @@ class ComparisonIntent(Enum):
 
 class TemporalIntent(Enum):
     """Types of temporal queries"""
+    NONE = "none"            # No temporal component
     POINT = "point"          # Specific date/time
     RANGE = "range"          # Date range
     RECENT = "recent"        # Recent data (last N days/months)
@@ -189,7 +190,7 @@ Examples:
                 time_range=entities_data.get('time_range'),
                 depth_range=entities_data.get('depth_range'),
                 comparison_intent=ComparisonIntent(entities_data.get('comparison_intent', 'none')),
-                temporal_intent=TemporalIntent(entities_data.get('temporal_intent', 'point')),
+                temporal_intent=TemporalIntent(entities_data.get('temporal_intent', 'none')),
                 statistical_operations=entities_data.get('statistical_operations', []),
                 confidence_score=entities_data.get('confidence_score', 0.7)
             )
@@ -242,7 +243,7 @@ Examples:
             comparison_intent = ComparisonIntent.STATISTICAL
         
         # Determine temporal intent
-        temporal_intent = TemporalIntent.POINT
+        temporal_intent = TemporalIntent.NONE
         if any(word in query_lower for word in ['trend', 'change', 'evolution']):
             temporal_intent = TemporalIntent.TREND
         elif any(word in query_lower for word in ['recent', 'last', 'past']):

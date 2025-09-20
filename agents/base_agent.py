@@ -12,6 +12,20 @@ from dataclasses import dataclass
 from .llm import BaseLLMConnector, LLMMessage, LLMResponse, LLMConnectorFactory
 from .config import AgentSystemConfig
 
+def extract_json_string(s: str) -> str:
+    """
+    Extracts the JSON substring from a string by finding the first '{'
+    and the last '}'.
+    Returns None if no valid JSON block is found.
+    """
+    start = s.find("{")
+    end = s.rfind("}")
+    
+    if start == -1 or end == -1 or start > end:
+        return None  # No valid JSON found
+    
+    return s[start:end+1]
+
 @dataclass
 class AgentResult:
     """Result returned by an agent"""

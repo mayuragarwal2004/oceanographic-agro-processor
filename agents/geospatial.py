@@ -301,7 +301,14 @@ Focus on marine/oceanic regions. Use standard geographic boundaries."""
         
         try:
             response = await self.call_llm(messages, temperature=0.1)
-            location_data = json.loads(response.content)
+            
+            # Extract and parse JSON
+            extracted_json = self.extract_json_string(response.content)
+            if extracted_json is None:
+                self.logger.warning("No valid JSON found in LLM response")
+                return None
+                
+            location_data = json.loads(extracted_json)
             
             if location_data is None:
                 return None

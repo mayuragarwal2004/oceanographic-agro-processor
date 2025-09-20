@@ -73,9 +73,10 @@ class DataRetrievalAgent(BaseAgent):
         self.query_templates = {
             'spatial_filter': """
                 SELECT p.platform_id, p.latitude, p.longitude, p.cycle_number, p.profile_date,
-                       m.parameter, m.pressure, m.parameter_value, m.parameter_qc
-                FROM Profile p
-                JOIN Measurement m ON p.profile_id = m.profile_id
+                       m.pressure, m.temp as temperature, m.psal as salinity,
+                       m.temp_qc as temperature_qc, m.psal_qc as salinity_qc, m.pressure_qc
+                FROM profiles p
+                JOIN measurements m ON p.id = m.profile_id
                 WHERE p.latitude BETWEEN {south} AND {north}
                   AND p.longitude BETWEEN {west} AND {east}
                   {time_filter}
@@ -86,52 +87,52 @@ class DataRetrievalAgent(BaseAgent):
             'temporal_aggregation': """
                 SELECT 
                     DATE_TRUNC('{time_unit}', p.profile_date) as time_period,
-                    m.parameter,
-                    AVG(m.parameter_value) as avg_value,
-                    MIN(m.parameter_value) as min_value,
-                    MAX(m.parameter_value) as max_value,
-                    STDDEV(m.parameter_value) as std_value,
+                    '{parameter}' as parameter,
+                    AVG({parameter_column}) as avg_value,
+                    MIN({parameter_column}) as min_value,
+                    MAX({parameter_column}) as max_value,
+                    STDDEV({parameter_column}) as std_value,
                     COUNT(*) as measurement_count
-                FROM Profile p
-                JOIN Measurement m ON p.profile_id = m.profile_id
+                FROM profiles p
+                JOIN measurements m ON p.id = m.profile_id
                 WHERE {spatial_filter}
                   {time_filter}
-                  {parameter_filter}
-                  AND m.parameter_qc IN ('1', '2', '5', '8')  -- Good quality data only
-                GROUP BY time_period, m.parameter
-                ORDER BY time_period, m.parameter
+                  AND {parameter_column} IS NOT NULL
+                  AND {qc_filter}
+                GROUP BY time_period
+                ORDER BY time_period
             """,
             
             'depth_profile': """
                 SELECT 
                     ROUND(m.pressure/10)*10 as depth_bin,  -- 10-meter depth bins
-                    m.parameter,
-                    AVG(m.parameter_value) as avg_value,
-                    STDDEV(m.parameter_value) as std_value,
+                    '{parameter}' as parameter,
+                    AVG({parameter_column}) as avg_value,
+                    STDDEV({parameter_column}) as std_value,
                     COUNT(*) as measurement_count
-                FROM Profile p
-                JOIN Measurement m ON p.profile_id = m.profile_id
+                FROM profiles p
+                JOIN measurements m ON p.id = m.profile_id
                 WHERE {spatial_filter}
                   {time_filter}
-                  {parameter_filter}
-                  AND m.parameter_qc IN ('1', '2', '5', '8')
-                GROUP BY depth_bin, m.parameter
-                ORDER BY depth_bin, m.parameter
+                  AND {parameter_column} IS NOT NULL
+                  AND {qc_filter}
+                GROUP BY depth_bin
+                ORDER BY depth_bin
             """,
             
             'comparison_query': """
                 WITH location_data AS (
                     SELECT 
                         CASE {location_classification} END as location_group,
-                        m.parameter,
-                        m.parameter_value,
+                        '{parameter}' as parameter,
+                        {parameter_column} as parameter_value,
                         p.profile_date
-                    FROM Profile p
-                    JOIN Measurement m ON p.profile_id = m.profile_id
+                    FROM profiles p
+                    JOIN measurements m ON p.id = m.profile_id
                     WHERE {spatial_filter}
                       {time_filter}
-                      {parameter_filter}
-                      AND m.parameter_qc IN ('1', '2', '5', '8')
+                      AND {parameter_column} IS NOT NULL
+                      AND {qc_filter}
                 )
                 SELECT 
                     location_group,
@@ -149,6 +150,50 @@ class DataRetrievalAgent(BaseAgent):
         
         # Connection pool
         self.connection_pool = None
+    
+    def _get_column_mapping(self, parameter: str) -> Dict[str, str]:
+        """Get database column names for a given parameter"""
+        mapping = {
+            'temperature': {
+                'column': 'temp',
+                'qc_column': 'temp_qc',
+                'adjusted_column': 'temp_adjusted'
+            },
+            'temp': {
+                'column': 'temp', 
+                'qc_column': 'temp_qc',
+                'adjusted_column': 'temp_adjusted'
+            },
+            'salinity': {
+                'column': 'psal',
+                'qc_column': 'psal_qc', 
+                'adjusted_column': 'psal_adjusted'
+            },
+            'psal': {
+                'column': 'psal',
+                'qc_column': 'psal_qc',
+                'adjusted_column': 'psal_adjusted'
+            },
+            'pressure': {
+                'column': 'pressure',
+                'qc_column': 'pressure_qc',
+                'adjusted_column': 'pressure_adjusted'
+            },
+            'pres': {
+                'column': 'pressure',
+                'qc_column': 'pressure_qc', 
+                'adjusted_column': 'pressure_adjusted'
+            }
+        }
+        return mapping.get(parameter.lower(), {})
+    
+    def _build_qc_filter(self, parameter: str) -> str:
+        """Build quality control filter for parameter"""
+        column_info = self._get_column_mapping(parameter)
+        qc_column = column_info.get('qc_column')
+        if qc_column:
+            return f"({qc_column} IN (1, 2, 5, 8) OR {qc_column} IS NULL)"
+        return "TRUE"
     
     async def process(self, input_data: Any, context: Dict[str, Any] = None) -> AgentResult:
         """Process operator graph and execute database queries"""
@@ -224,17 +269,34 @@ class DataRetrievalAgent(BaseAgent):
             await self.connection_pool.close()
             self.logger.info("Database connection pool closed")
     
-    async def _generate_query_plan(self, operator_graph: Dict[str, Any], locations: List[Dict[str, Any]]) -> QueryPlan:
+    async def _generate_query_plan(self, operator_graph, locations: List[Dict[str, Any]]) -> QueryPlan:
         """Generate SQL query plan from operator graph"""
         
-        print(operator_graph)
+        self.logger.info(f"Operator graph type: {type(operator_graph)}")
+        self.logger.info(f"Operator graph: {operator_graph}")
         
-        nodes = operator_graph.get('nodes', [])
+        # Handle both dict and OperatorGraph object
+        if hasattr(operator_graph, 'nodes'):
+            # It's an OperatorGraph dataclass
+            nodes = operator_graph.nodes
+        elif isinstance(operator_graph, dict):
+            # It's a dictionary
+            nodes = operator_graph.get('nodes', [])
+        else:
+            raise ValueError(f"Unexpected operator_graph type: {type(operator_graph)}")
         
         # Find data retrieval node (should be first in the graph)
         retrieval_node = None
         for node in nodes:
-            if node['operation'] == 'data_retrieval':
+            # Handle both dict nodes and OperatorNode objects
+            if hasattr(node, 'operation'):
+                operation = node.operation
+            elif isinstance(node, dict):
+                operation = node.get('operation')
+            else:
+                continue
+                
+            if operation == 'data_retrieval':
                 retrieval_node = node
                 break
         
@@ -262,15 +324,20 @@ class DataRetrievalAgent(BaseAgent):
         return QueryPlan(
             query_type=query_type,
             sql_query=sql_query,
-            parameters=retrieval_node.get('parameters', {}),
+            parameters=self._get_node_parameters(retrieval_node),
             estimated_rows=estimated_rows,
             optimization_notes=[]
         )
     
-    def _determine_query_type(self, nodes: List[Dict[str, Any]]) -> QueryType:
+    def _determine_query_type(self, nodes) -> QueryType:
         """Determine the type of query based on operator graph"""
         
-        operations = [node['operation'] for node in nodes]
+        operations = []
+        for node in nodes:
+            if hasattr(node, 'operation'):
+                operations.append(node.operation)
+            elif isinstance(node, dict):
+                operations.append(node.get('operation', ''))
         
         if 'comparison' in operations:
             return QueryType.COMPARISON_QUERY
@@ -283,10 +350,20 @@ class DataRetrievalAgent(BaseAgent):
         else:
             return QueryType.POINT_QUERY
     
-    async def _build_spatial_query(self, node: Dict[str, Any], locations: List[Dict[str, Any]]) -> str:
+    def _get_node_parameters(self, node) -> Dict[str, Any]:
+        """Get parameters from node (handles both dict and OperatorNode object)"""
+        if hasattr(node, 'parameters'):
+            return node.parameters
+        elif isinstance(node, dict):
+            return node.get('parameters', {})
+        else:
+            return {}
+    
+    async def _build_spatial_query(self, node, locations: List[Dict[str, Any]]) -> str:
         """Build spatial filter query"""
         
-        parameters = node.get('parameters', {})
+        parameters = self._get_node_parameters(node)
+        requested_params = parameters.get('parameters', ['temperature'])  # Default to temperature
         
         # Build spatial filter
         spatial_conditions = []
@@ -298,72 +375,46 @@ class DataRetrievalAgent(BaseAgent):
             )
         
         spatial_filter = " OR ".join(spatial_conditions) if spatial_conditions else "TRUE"
-        
-        # Build parameter filter
-        parameter_filter = self._build_parameter_filter(parameters.get('parameters', []))
         
         # Build time filter
         time_filter = self._build_time_filter(parameters.get('time_range'))
         
-        return self.query_templates['spatial_filter'].format(
-            south=min(loc['bounds']['south'] for loc in locations) if locations else -90,
-            north=max(loc['bounds']['north'] for loc in locations) if locations else 90,
-            west=min(loc['bounds']['west'] for loc in locations) if locations else -180,
-            east=max(loc['bounds']['east'] for loc in locations) if locations else 180,
-            time_filter=f"AND {time_filter}" if time_filter else "",
-            parameter_filter=f"AND {parameter_filter}" if parameter_filter else ""
+        # For spatial queries, we'll return all available data columns
+        # Use basic template but modify column selection
+        query = """
+            SELECT p.platform_id, p.latitude, p.longitude, p.cycle_number, p.profile_date,
+                   m.pressure, m.temp as temperature, m.psal as salinity,
+                   m.temp_qc as temperature_qc, m.psal_qc as salinity_qc, m.pressure_qc
+            FROM profiles p
+            LEFT JOIN measurements m ON p.id = m.profile_id
+            WHERE ({spatial_filter})
+              {time_filter}
+            ORDER BY p.profile_date, p.platform_id, m.pressure
+        """.format(
+            spatial_filter=spatial_filter,
+            time_filter=f"AND {time_filter}" if time_filter else ""
         )
+        
+        return query
     
-    async def _build_statistical_query(self, node: Dict[str, Any], locations: List[Dict[str, Any]], nodes: List[Dict[str, Any]]) -> str:
+    async def _build_statistical_query(self, node, locations: List[Dict[str, Any]], nodes) -> str:
         """Build statistical aggregation query"""
         
-        parameters = node.get('parameters', {})
+        parameters = self._get_node_parameters(node)
+        requested_params = parameters.get('parameters', ['temperature'])
         
         # Find statistical operations
-        stats_node = next((n for n in nodes if n['operation'] == 'statistical_analysis'), None)
-        operations = stats_node.get('parameters', {}).get('operations', []) if stats_node else []
+        stats_node = None
+        for n in nodes:
+            operation = n.operation if hasattr(n, 'operation') else n.get('operation', '')
+            if operation == 'statistical_analysis':
+                stats_node = n
+                break
         
-        # Determine aggregation level (temporal vs depth)
-        if any('trend' in op or 'temporal' in op for op in operations):
-            time_unit = 'month'  # Default to monthly aggregation
-            return self._build_temporal_aggregation_query(parameters, locations, time_unit)
-        else:
-            return self._build_depth_profile_query(parameters, locations)
-    
-    async def _build_comparison_query(self, node: Dict[str, Any], locations: List[Dict[str, Any]], nodes: List[Dict[str, Any]]) -> str:
-        """Build comparison query across locations/parameters"""
-        
-        parameters = node.get('parameters', {})
-        
-        # Build location classification for comparison
-        location_cases = []
-        for i, location in enumerate(locations):
-            bounds = location['bounds']
-            location_cases.append(
-                f"WHEN (p.latitude BETWEEN {bounds['south']} AND {bounds['north']} "
-                f"AND p.longitude BETWEEN {bounds['west']} AND {bounds['east']}) THEN '{location['name']}'"
-            )
-        
-        location_classification = "\n".join(location_cases) + "\nELSE 'Unknown'"
-        
-        # Build filters
-        spatial_filter = "TRUE"  # We classify in the CASE statement
-        time_filter = self._build_time_filter(parameters.get('time_range'))
-        parameter_filter = self._build_parameter_filter(parameters.get('parameters', []))
-        
-        return self.query_templates['comparison_query'].format(
-            location_classification=location_classification,
-            spatial_filter=spatial_filter,
-            time_filter=f"AND {time_filter}" if time_filter else "",
-            parameter_filter=f"AND {parameter_filter}" if parameter_filter else ""
-        )
-    
-    async def _build_point_query(self, node: Dict[str, Any], locations: List[Dict[str, Any]]) -> str:
-        """Build simple point query"""
-        return await self._build_spatial_query(node, locations)
-    
-    def _build_temporal_aggregation_query(self, parameters: Dict[str, Any], locations: List[Dict[str, Any]], time_unit: str) -> str:
-        """Build temporal aggregation query"""
+        operations = []
+        if stats_node:
+            stats_params = self._get_node_parameters(stats_node)
+            operations = stats_params.get('operations', [])
         
         # Build spatial filter
         spatial_conditions = []
@@ -375,21 +426,101 @@ class DataRetrievalAgent(BaseAgent):
             )
         
         spatial_filter = " OR ".join(spatial_conditions) if spatial_conditions else "TRUE"
-        
-        # Build other filters
         time_filter = self._build_time_filter(parameters.get('time_range'))
-        parameter_filter = self._build_parameter_filter(parameters.get('parameters', []))
         
-        return self.query_templates['temporal_aggregation'].format(
-            time_unit=time_unit,
-            spatial_filter=spatial_filter,
-            time_filter=f"AND {time_filter}" if time_filter else "",
-            parameter_filter=f"AND {parameter_filter}" if parameter_filter else ""
-        )
+        # Determine aggregation level (temporal vs depth)
+        if any('trend' in op or 'temporal' in op for op in operations):
+            time_unit = 'month'  # Default to monthly aggregation
+            
+            # Build UNION query for all requested parameters
+            param_queries = []
+            for param in requested_params:
+                column_info = self._get_column_mapping(param)
+                if column_info:
+                    time_condition = f"AND {time_filter}" if time_filter else ""
+                    param_query = f"""
+                        SELECT 
+                            DATE_TRUNC('{time_unit}', p.profile_date) as time_period,
+                            '{param}' as parameter,
+                            AVG({column_info['column']}) as avg_value,
+                            MIN({column_info['column']}) as min_value,
+                            MAX({column_info['column']}) as max_value,
+                            STDDEV({column_info['column']}) as std_value,
+                            COUNT(*) as measurement_count
+                        FROM profiles p
+                        JOIN measurements m ON p.id = m.profile_id
+                        WHERE ({spatial_filter})
+                          {time_condition}
+                          AND {column_info['column']} IS NOT NULL
+                          AND {self._build_qc_filter(param)}
+                        GROUP BY time_period
+                    """
+                    param_queries.append(param_query)
+            
+            if param_queries:
+                return " UNION ALL ".join(param_queries) + " ORDER BY time_period, parameter"
+            
+        # Default to depth profile
+        return self._build_depth_profile_query(parameters, locations)
+    
+    async def _build_comparison_query(self, node, locations: List[Dict[str, Any]], nodes) -> str:
+        """Build comparison query across locations/parameters"""
+        
+        parameters = self._get_node_parameters(node)
+        requested_params = parameters.get('parameters', ['temperature'])
+        time_filter = self._build_time_filter(parameters.get('time_range'))
+        
+        # Build location-specific queries for each parameter
+        all_queries = []
+        
+        for param in requested_params:
+            column_info = self._get_column_mapping(param)
+            if not column_info:
+                continue
+                
+            location_queries = []
+            for location in locations:
+                bounds = location['bounds']
+                location_name = location.get('name', 'Unknown')
+                
+                query = f"""
+                    SELECT 
+                        '{location_name}' as location_group,
+                        '{param}' as parameter,
+                        AVG({column_info['column']}) as avg_value,
+                        MIN({column_info['column']}) as min_value,
+                        MAX({column_info['column']}) as max_value,
+                        STDDEV({column_info['column']}) as std_value,
+                        COUNT(*) as measurement_count
+                    FROM profiles p
+                    JOIN measurements m ON p.id = m.profile_id
+                    WHERE p.latitude BETWEEN {bounds['south']} AND {bounds['north']}
+                      AND p.longitude BETWEEN {bounds['west']} AND {bounds['east']}
+                      {f"AND {time_filter}" if time_filter else ""}
+                      AND {column_info['column']} IS NOT NULL
+                      AND {self._build_qc_filter(param)}
+                """
+                location_queries.append(query)
+            
+            if location_queries:
+                all_queries.extend(location_queries)
+        
+        if all_queries:
+            return " UNION ALL ".join(all_queries) + " ORDER BY location_group, parameter"
+        
+        # Fallback to simple spatial query
+        return await self._build_spatial_query(node, locations)
+    
+    async def _build_point_query(self, node, locations: List[Dict[str, Any]]) -> str:
+        """Build simple point query"""
+        return await self._build_spatial_query(node, locations)
     
     def _build_depth_profile_query(self, parameters: Dict[str, Any], locations: List[Dict[str, Any]]) -> str:
         """Build depth profile query"""
         
+        requested_params = parameters.get('parameters', ['temperature'])
+        
+        # Build spatial filter
         spatial_conditions = []
         for location in locations:
             bounds = location['bounds']
@@ -400,38 +531,66 @@ class DataRetrievalAgent(BaseAgent):
         
         spatial_filter = " OR ".join(spatial_conditions) if spatial_conditions else "TRUE"
         time_filter = self._build_time_filter(parameters.get('time_range'))
-        parameter_filter = self._build_parameter_filter(parameters.get('parameters', []))
         
-        return self.query_templates['depth_profile'].format(
-            spatial_filter=spatial_filter,
-            time_filter=f"AND {time_filter}" if time_filter else "",
-            parameter_filter=f"AND {parameter_filter}" if parameter_filter else ""
-        )
+        # Build query for each parameter
+        param_queries = []
+        for param in requested_params:
+            column_info = self._get_column_mapping(param)
+            if column_info:
+                query = f"""
+                    SELECT 
+                        '{param}' as parameter,
+                        FLOOR(m.pressure / 10) * 10 as depth_bin,
+                        AVG({column_info['column']}) as avg_value,
+                        COUNT(*) as measurement_count
+                    FROM profiles p
+                    JOIN measurements m ON p.id = m.profile_id
+                    WHERE ({spatial_filter})
+                      {f"AND {time_filter}" if time_filter else ""}
+                      AND {column_info['column']} IS NOT NULL
+                      AND m.pressure IS NOT NULL
+                      AND {self._build_qc_filter(param)}
+                    GROUP BY depth_bin
+                """
+                param_queries.append(query)
+        
+        if param_queries:
+            return " UNION ALL ".join(param_queries) + " ORDER BY parameter, depth_bin"
+        
+        # Fallback simple query
+        return f"""
+            SELECT 
+                'temperature' as parameter,
+                FLOOR(m.pressure / 10) * 10 as depth_bin,
+                AVG(m.temp) as avg_value,
+                COUNT(*) as measurement_count
+            FROM profiles p
+            JOIN measurements m ON p.id = m.profile_id
+            WHERE ({spatial_filter})
+              {f"AND {time_filter}" if time_filter else ""}
+              AND m.temp IS NOT NULL
+              AND m.pressure IS NOT NULL
+              AND m.temp_qc IN (1, 2)
+            GROUP BY depth_bin
+            ORDER BY depth_bin
+        """
     
     def _build_parameter_filter(self, parameters: List[str]) -> str:
-        """Build parameter filter clause"""
+        """Build parameter filter clause for specific columns"""
         if not parameters:
-            return ""
+            return "TRUE"
         
-        # Map common parameter names to database values
-        param_mapping = {
-            'temperature': 'TEMP',
-            'temp': 'TEMP',
-            'salinity': 'PSAL',
-            'psal': 'PSAL',
-            'pressure': 'PRES',
-            'pres': 'PRES'
-        }
-        
-        db_params = []
+        # Build OR conditions for each parameter column
+        conditions = []
         for param in parameters:
-            if param.lower() in param_mapping:
-                db_params.append(f"'{param_mapping[param.lower()]}'")
+            column_info = self._get_column_mapping(param)
+            if column_info:
+                conditions.append(f"{column_info['column']} IS NOT NULL")
         
-        if db_params:
-            return f"m.parameter IN ({', '.join(db_params)})"
+        if conditions:
+            return "(" + " OR ".join(conditions) + ")"
         else:
-            return ""
+            return "TRUE"
     
     def _build_time_filter(self, time_range: Optional[Dict[str, Any]]) -> str:
         """Build time filter clause"""
