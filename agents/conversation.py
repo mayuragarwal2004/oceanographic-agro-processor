@@ -267,6 +267,9 @@ class ConversationAgent(BaseAgent):
         
         print("test2.1")
         
+        print("analysis_results")
+        print(analysis_results)
+        
         # Prepare summary data
         summary_context = {
             'original_query': query,

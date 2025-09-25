@@ -415,7 +415,10 @@ class AgentOrchestrator(BaseAgent):
         elif agent_name == 'conversation':
             print("mayur find the error here")
             print("*"*20)
-            print(previous_results)
+            import pprint
+            
+            pprint.pprint(previous_results)
+            
             print("*"*20)
             print("mayur end")
             return {
