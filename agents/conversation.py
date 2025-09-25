@@ -231,10 +231,14 @@ class ConversationAgent(BaseAgent):
         
         # Format visualizations
         visualizations = self._format_visualizations(visualization_results)
-        
+        self.logger.info(f"Formatted {len(visualizations)} visualizations for response")
+        self.logger.info(f"Visualizations: {visualizations}")
         print("test1.5")
         
         # Generate recommendations
+        self.logger.info(f"analysis_results keys: {list(analysis_results.keys())}")
+        self.logger.info(f"validation_results keys: {list(validation_results.keys())}")
+        self.logger.info(f"query_results keys: {list(query_results.keys())}")
         recommendations = self._compile_recommendations(
             analysis_results, validation_results, query_results
         )
@@ -247,8 +251,10 @@ class ConversationAgent(BaseAgent):
         print("test1.7")
         
         # Generate follow-up suggestions
+        self.logger.info(f"query_results: {query_results}")
+        self.logger.info(f"analysis_results: {analysis_results}")
         follow_ups = self._suggest_follow_ups(query_results, analysis_results)
-        
+        self.logger.info(f"Follow-up suggestions: {follow_ups}")    
         print("test1.8")
         
         return ResponseComponents(
@@ -418,13 +424,15 @@ class ConversationAgent(BaseAgent):
             recommendations.extend(val_recs[:2])  # Top 2 validation recommendations
         
         # Query-based recommendations
-        entities = query_results.get('entities', {})
-        if entities:
-            if entities.get('temporal_intent') == 'recent':
+        # Query-based recommendations
+        entities = query_results.get('entities')
+        # Check if entities exists and has the attributes we need
+        if entities and hasattr(entities, 'temporal_intent'):
+            # FIX: Use dot notation to access attributes of the ExtractedEntities object
+            if entities.temporal_intent == 'recent':
                 recommendations.append("Consider analyzing longer time periods to identify seasonal patterns")
-            elif entities.get('comparison_intent') == 'spatial':
+            elif entities.comparison_intent == 'spatial':
                 recommendations.append("Explore temporal trends in each region for deeper insights")
-        
         return recommendations[:5]  # Limit to 5 recommendations
     
     def _identify_caveats(self, validation_results: Dict[str, Any], 
@@ -463,18 +471,23 @@ class ConversationAgent(BaseAgent):
         
         suggestions = []
         
+        # FIX: Access the nested 'analysis_results' dictionary correctly
+        actual_analysis = analysis_results.get('analysis_results', {})
+        
         # Based on current analysis
-        if 'descriptive' in analysis_results and 'trend' not in analysis_results:
+        if 'descriptive' in actual_analysis and 'trend' not in actual_analysis:
             suggestions.append("Analyze trends over time to understand temporal patterns")
         
-        if 'trend' in analysis_results and 'seasonal' not in analysis_results:
+        if 'trend' in actual_analysis and 'seasonal' not in actual_analysis:
             suggestions.append("Explore seasonal patterns in the data")
         
         # Based on query entities
-        entities = query_results.get('entities', {})
-        if entities:
-            locations = entities.get('locations', [])
-            parameters = entities.get('parameters', [])
+        entities = query_results.get('entities')
+        
+        # FIX: Use dot notation (.) to access attributes of the ExtractedEntities object
+        if entities and hasattr(entities, 'locations'):
+            locations = entities.locations or []
+            parameters = entities.parameters or []
             
             if len(locations) == 1 and len(parameters) >= 2:
                 suggestions.append("Compare these parameters across different ocean regions")
@@ -488,8 +501,8 @@ class ConversationAgent(BaseAgent):
             "Compare results with climatological averages"
         ])
         
-        return suggestions[:4]  # Limit to 4 suggestions
-    
+        return suggestions[:4]
+        
     async def _generate_natural_response(self, components: ResponseComponents,
                                        context: ConversationContext,
                                        preferences: Dict[str, Any]) -> str:

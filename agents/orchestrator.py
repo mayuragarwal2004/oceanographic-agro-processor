@@ -101,15 +101,16 @@ class AgentOrchestrator(BaseAgent):
     
     async def process(self, input_data: Any, context: Dict[str, Any] = None) -> AgentResult:
         """Process a user query through the complete agent workflow"""
-        
+        self.logger.info("Reached at line 104")
         try:
             if not isinstance(input_data, str):
                 return AgentResult.error_result(
                     self.agent_name,
                     ["Input must be a string query"]
                 )
-            
+            self.logger.info(f"Received query: {input_data[:100]}...")
             user_query = input_data.strip()
+            self.logger.info(f"Processing query: {user_query[:100]}...")
             session_id = context.get('session_id', f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
             
             self.logger.info(f"Starting orchestration for query: {user_query[:100]}...")
@@ -133,12 +134,24 @@ class AgentOrchestrator(BaseAgent):
             # Calculate total execution time
             total_time = (datetime.now() - execution_context.start_time).total_seconds()
             
+            # Safely extract final data from agent results
+            conversation_result = final_result.get('conversation')
+            visualization_result = final_result.get('visualization')
+            critic_result = final_result.get('critic')
+
+            conversation_data = conversation_result.data if conversation_result and conversation_result.success else {}
+            visualization_data = visualization_result.data if visualization_result and visualization_result.success else {}
+            critic_data = critic_result.data if critic_result and critic_result.success else {}
+            
+            # Calculate total execution time
+            total_time = (datetime.now() - execution_context.start_time).total_seconds()
+            
             return AgentResult.success_result(
                 self.agent_name,
                 {
-                    'response': final_result.get('conversation', {}).get('data', {}).get('response', 'Analysis completed successfully.'),
-                    'visualizations': final_result.get('visualization', {}).get('data', {}).get('visualizations', {}),
-                    'validation_report': final_result.get('critic', {}).get('data', {}).get('validation_report', {}),
+                    'response': conversation_data.get('response', 'Analysis completed successfully.'),
+                    'visualizations': visualization_data.get('visualizations', {}),
+                    'validation_report': critic_data.get('validation_report', {}),
                     'execution_summary': {
                         'total_time': total_time,
                         'agents_executed': list(final_result.keys()),
@@ -276,7 +289,7 @@ class AgentOrchestrator(BaseAgent):
                 if result.errors:
                     self.logger.info(f"Errors: {result.errors}")
                 self.logger.info(f"=== END AGENT OUTPUT ===")
-                
+                self.logger.info(f"We are here 280")
                 results[agent_name] = result
                 context.intermediate_results[agent_name] = result
                 
@@ -294,7 +307,9 @@ class AgentOrchestrator(BaseAgent):
                 error_msg = f"Agent {agent_name} execution failed: {str(e)}"
                 self.logger.error(error_msg)
                 results[agent_name] = AgentResult.error_result(agent_name, [error_msg])
-        
+        self.logger.info(f"We are here 300")
+        self.logger.info(f"Results keys: {list(results.keys())}")
+        self.logger.info(f"Results: {results}")
         return results
     
     async def _execute_agents_parallel(self, agent_names: List[str],
