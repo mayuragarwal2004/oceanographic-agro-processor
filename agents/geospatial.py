@@ -10,7 +10,7 @@ from typing import Dict, Any, List, Optional, Tuple, Union
 from dataclasses import dataclass
 from enum import Enum
 
-from .base_agent import BaseAgent, AgentResult, LLMMessage
+from .base_agent import BaseAgent, AgentResult, LLMMessage, extract_json_string
 
 # Add query-specific logging
 import sys
@@ -345,7 +345,7 @@ Focus on marine/oceanic regions. Use standard geographic boundaries."""
             response = await self.call_llm(messages, temperature=0.1)
             
             # Extract and parse JSON
-            extracted_json = self.extract_json_string(response.content)
+            extracted_json = extract_json_string(response.content)
             if extracted_json is None:
                 self.logger.warning("No valid JSON found in LLM response")
                 return None
