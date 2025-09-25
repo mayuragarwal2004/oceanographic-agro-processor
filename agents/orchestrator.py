@@ -101,7 +101,7 @@ class AgentOrchestrator(BaseAgent):
     
     async def process(self, input_data: Any, context: Dict[str, Any] = None) -> AgentResult:
         """Process a user query through the complete agent workflow"""
-        self.logger.info("Reached at line 104")
+        
         try:
             if not isinstance(input_data, str):
                 return AgentResult.error_result(
@@ -133,25 +133,13 @@ class AgentOrchestrator(BaseAgent):
             
             # Calculate total execution time
             total_time = (datetime.now() - execution_context.start_time).total_seconds()
-            
-            # Safely extract final data from agent results
-            conversation_result = final_result.get('conversation')
-            visualization_result = final_result.get('visualization')
-            critic_result = final_result.get('critic')
-
-            conversation_data = conversation_result.data if conversation_result and conversation_result.success else {}
-            visualization_data = visualization_result.data if visualization_result and visualization_result.success else {}
-            critic_data = critic_result.data if critic_result and critic_result.success else {}
-            
-            # Calculate total execution time
-            total_time = (datetime.now() - execution_context.start_time).total_seconds()
-            
+            self.logger.info(f"final_results={final_result}")
             return AgentResult.success_result(
                 self.agent_name,
                 {
-                    'response': conversation_data.get('response', 'Analysis completed successfully.'),
-                    'visualizations': visualization_data.get('visualizations', {}),
-                    'validation_report': critic_data.get('validation_report', {}),
+                    'response': final_result.get('conversation', {}).get('data', {}).get('response', 'Analysis completed successfully.'),
+                    'visualizations': final_result.get('visualization', {}).get('data', {}).get('visualizations', {}),
+                    'validation_report': final_result.get('critic', {}).get('data', {}).get('validation_report', {}),
                     'execution_summary': {
                         'total_time': total_time,
                         'agents_executed': list(final_result.keys()),
