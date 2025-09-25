@@ -45,7 +45,7 @@ const OpenStreetMap = ({
       ], {
         color: '#FF0000',
         weight: 2,
-        opacity: 0.7,
+        opacity: 0.2,
         dashArray: '5, 5'
       }).addTo(mapInstanceRef.current)
       gridLinesRef.current.push(line)
@@ -71,7 +71,7 @@ const OpenStreetMap = ({
       ], {
         color: '#0000FF',
         weight: 2,
-        opacity: 0.7,
+        opacity: 0.2,
         dashArray: '5, 5'
       }).addTo(mapInstanceRef.current)
       gridLinesRef.current.push(line)
@@ -91,12 +91,12 @@ const OpenStreetMap = ({
     // Add other lines (minor lines, special lines)
     // (Truncated for brevity but same logic)
     const equator = L.polyline([[0, -180], [0, 180]], {
-      color: '#FF0000', weight: 3, opacity: 0.8
+      color: '#FF0000', weight: 3, opacity: 0.6
     }).addTo(mapInstanceRef.current)
     gridLinesRef.current.push(equator)
 
     const primeMeridian = L.polyline([[-90, 0], [90, 0]], {
-      color: '#0000FF', weight: 3, opacity: 0.8
+      color: '#0000FF', weight: 3, opacity: 0.6
     }).addTo(mapInstanceRef.current)
     gridLinesRef.current.push(primeMeridian)
   }, [showGridLines])
@@ -116,8 +116,10 @@ const OpenStreetMap = ({
     if (!showOceanLabels) return
 
     const oceans = [
-      { name: 'Pacific Ocean', lat: 0, lng: -150, style: 'font-size: 20px; font-weight: bold; color: #006994; text-shadow: 2px 2px 4px rgba(255,255,255,0.8);' },
-      { name: 'Atlantic Ocean', lat: 0, lng: -30, style: 'font-size: 18px; font-weight: bold; color: #006994; text-shadow: 2px 2px 4px rgba(255,255,255,0.8);' },
+      { name: 'North Pacific', lat: 30, lng: -150, style: 'font-size: 18px; font-weight: bold; color: #006994; text-shadow: 2px 2px 4px rgba(255,255,255,0.8);' },
+      { name: 'South Pacific', lat: -30, lng: -150, style: 'font-size: 18px; font-weight: bold; color: #006994; text-shadow: 2px 2px 4px rgba(255,255,255,0.8);' },
+      { name: 'North Atlantic', lat: 30, lng: -30, style: 'font-size: 18px; font-weight: bold; color: #006994; text-shadow: 2px 2px 4px rgba(255,255,255,0.8);' },
+      { name: 'South Atlantic', lat: -30, lng: -15, style: 'font-size: 18px; font-weight: bold; color: #006994; text-shadow: 2px 2px 4px rgba(255,255,255,0.8);' },
       { name: 'Indian Ocean', lat: -20, lng: 80, style: 'font-size: 18px; font-weight: bold; color: #006994; text-shadow: 2px 2px 4px rgba(255,255,255,0.8);' },
       { name: 'Arctic Ocean', lat: 80, lng: 0, style: 'font-size: 16px; font-weight: bold; color: #4A90E2; text-shadow: 2px 2px 4px rgba(255,255,255,0.8);' },
       { name: 'Mediterranean Sea', lat: 35, lng: 15, style: 'font-size: 12px; font-weight: bold; color: #0080CC; text-shadow: 1px 1px 2px rgba(255,255,255,0.8);' }
