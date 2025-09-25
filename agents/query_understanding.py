@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 
-from .base_agent import BaseAgent, AgentResult, LLMMessage
+from .base_agent import BaseAgent, AgentResult, LLMMessage, extract_json_string
 
 class ComparisonIntent(Enum):
     """Types of comparison intents"""
@@ -164,7 +164,7 @@ Examples:
             self.logger.info(f"{response.content}")
             self.logger.info(f"--- Extracting JSON ---")
             
-            extracted_json = self.extract_json_string(response.content)
+            extracted_json = extract_json_string(response.content)
             if extracted_json is None:
                 self.logger.warning("No valid JSON found in response, using fallback")
                 return self._extract_entities_rule_based(query)
