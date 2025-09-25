@@ -398,57 +398,71 @@ class DataRetrievalAgent(BaseAgent):
         return query
     
     async def _build_statistical_query(self, node, locations: List[Dict[str, Any]], nodes) -> str:
-        """
-        FIX: This method now correctly builds a query to fetch RAW data 
-        for statistical analysis, leaving the actual calculation to the AnalysisAgent.
-        """
-        self.logger.info("Building a raw data fetch query for statistical analysis...")
+        """Build statistical aggregation query"""
         
         parameters = self._get_node_parameters(node)
         requested_params = parameters.get('parameters', ['temperature'])
         
-        # Build spatial filter from resolved locations
-        where_conditions = []
-        if locations:
-            spatial_conditions = []
-            for location in locations:
-                bounds = location['bounds']
-                spatial_conditions.append(
-                    f"(p.latitude BETWEEN {bounds['south']} AND {bounds['north']} AND p.longitude BETWEEN {bounds['west']} AND {bounds['east']})"
-                )
-            where_conditions.append(f"({' OR '.join(spatial_conditions)})")
-
-        # Build time filter
+        # Find statistical operations
+        stats_node = None
+        for n in nodes:
+            operation = n.operation if hasattr(n, 'operation') else n.get('operation', '')
+            if operation == 'statistical_analysis':
+                stats_node = n
+                break
+        
+        operations = []
+        if stats_node:
+            stats_params = self._get_node_parameters(stats_node)
+            operations = stats_params.get('operations', [])
+        
+        # Build spatial filter
+        spatial_conditions = []
+        for location in locations:
+            bounds = location['bounds']
+            spatial_conditions.append(
+                f"(p.latitude BETWEEN {bounds['south']} AND {bounds['north']} "
+                f"AND p.longitude BETWEEN {bounds['west']} AND {bounds['east']})"
+            )
+        
+        spatial_filter = " OR ".join(spatial_conditions) if spatial_conditions else "TRUE"
         time_filter = self._build_time_filter(parameters.get('time_range'))
-        if time_filter:
-            where_conditions.append(time_filter)
-
-        # Build SELECT clauses and add necessary WHERE conditions for raw data
-        select_clauses = ["p.latitude", "p.longitude", "p.profile_date"]
-        for param in requested_params:
-            column_info = self._get_column_mapping(param)
-            if column_info:
-                # Add the raw data column to the SELECT statement
-                select_clauses.append(f"m.{column_info['column']} AS {param}")
-                # Ensure we only get rows where this data exists
-                where_conditions.append(f"m.{column_info['column']} IS NOT NULL")
-                # Apply the Quality Control filter
-                where_conditions.append(self._build_qc_filter(param))
         
-        where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
-
-        # The final query fetches raw data points, with no aggregation (no AVG or GROUP BY)
-        query = f"""
-            SELECT {', '.join(select_clauses)}
-            FROM profiles p
-            JOIN measurements m ON p.id = m.profile_id
-            {where_clause}
-            LIMIT 20000;
-        """
-        
-        return " ".join(query.split())
-
-        
+        # Determine aggregation level (temporal vs depth)
+        if any('trend' in op or 'temporal' in op for op in operations):
+            time_unit = 'month'  # Default to monthly aggregation
+            
+            # Build UNION query for all requested parameters
+            param_queries = []
+            for param in requested_params:
+                column_info = self._get_column_mapping(param)
+                if column_info:
+                    time_condition = f"AND {time_filter}" if time_filter else ""
+                    param_query = f"""
+                        SELECT 
+                            DATE_TRUNC('{time_unit}', p.profile_date) as time_period,
+                            '{param}' as parameter,
+                            AVG({column_info['column']}) as avg_value,
+                            MIN({column_info['column']}) as min_value,
+                            MAX({column_info['column']}) as max_value,
+                            STDDEV({column_info['column']}) as std_value,
+                            COUNT(*) as measurement_count
+                        FROM profiles p
+                        JOIN measurements m ON p.id = m.profile_id
+                        WHERE ({spatial_filter})
+                          {time_condition}
+                          AND {column_info['column']} IS NOT NULL
+                          AND {self._build_qc_filter(param)}
+                        GROUP BY time_period
+                    """
+                    param_queries.append(param_query)
+            
+            if param_queries:
+                return " UNION ALL ".join(param_queries) + " ORDER BY time_period, parameter"
+            
+        # Default to depth profile
+        return self._build_depth_profile_query(parameters, locations)
+    
     async def _build_comparison_query(self, node, locations: List[Dict[str, Any]], nodes) -> str:
         """Build comparison query across locations/parameters"""
         
