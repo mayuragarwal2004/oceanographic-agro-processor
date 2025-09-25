@@ -125,10 +125,9 @@ function MeasurementsTable({ profile, onBack }) {
           <table className="data-table">
             <thead>
               <tr>
-                <th rowSpan="2" style={{ verticalAlign: 'middle' }}>🌊 Depth<br/><small style={{ fontWeight: 'normal', opacity: '0.8' }}>Pressure (dbar)</small></th>
+                <th colSpan="2" style={{ textAlign: 'center', borderBottom: '1px solid #ddd' }}>🌊 Pressure (dbar)</th>
                 <th colSpan="2" style={{ textAlign: 'center', borderBottom: '1px solid #ddd' }}>🌡️ Temperature (°C)</th>
                 <th colSpan="2" style={{ textAlign: 'center', borderBottom: '1px solid #ddd' }}>🧂 Salinity (PSU)</th>
-                <th colSpan="2" style={{ textAlign: 'center', borderBottom: '1px solid #ddd' }}>🏷️ QC Flags</th>
                 <th rowSpan="2" style={{ verticalAlign: 'middle' }}>📊 Adjustment Errors</th>
               </tr>
               <tr>
@@ -144,114 +143,118 @@ function MeasurementsTable({ profile, onBack }) {
               {measurements.map((measurement, index) => {
                 return (
                   <tr key={measurement.id || index}>
-                    {/* Depth/Pressure Column */}
-                    <td style={{ color: '#2c3e50', fontWeight: 'bold', fontSize: '1rem' }}>
-                      {formatValue(measurement.pressure, 1)}
-                      <div style={{ fontSize: '0.8rem', color: '#6c757d', fontWeight: 'normal' }}>
+                    {/* Pressure - Actual */}
+                    <td style={{ color: '#3498db', fontWeight: '600', fontSize: '0.9rem' }}>
+                      {formatValue(measurement.pressure, 1)} 
+                      <span style={{ 
+                        fontSize: '0.7rem', 
+                        color: 'white',
+                        fontWeight: 'bold',
+                        backgroundColor: getQcColor(measurement.pressure_qc),
+                        padding: '0.2rem 0.4rem',
+                        borderRadius: '4px',
+                        marginLeft: '0.3rem'
+                      }}>
+                        ({measurement.pressure_qc || 'N/A'})
+                      </span>
+                      <div style={{ fontSize: '0.75rem', color: '#6c757d', fontWeight: 'normal' }}>
                         ~{formatValue(measurement.pressure, 0)}m depth
                       </div>
                     </td>
                     
+                    {/* Pressure - Adjusted */}
+                    <td style={{ color: '#e67e22', fontWeight: '600', fontSize: '0.9rem' }}>
+                      {formatValue(measurement.pressure_adjusted, 1)} 
+                      <span style={{ 
+                        fontSize: '0.7rem', 
+                        color: 'white',
+                        fontWeight: 'bold',
+                        backgroundColor: getQcColor(measurement.pressure_adjusted_qc),
+                        padding: '0.2rem 0.4rem',
+                        borderRadius: '4px',
+                        marginLeft: '0.3rem'
+                      }}>
+                        ({measurement.pressure_adjusted_qc || 'N/A'})
+                      </span>
+                    </td>
+                    
                     {/* Temperature - Actual */}
                     <td style={{ color: '#3498db', fontWeight: '600', fontSize: '0.9rem' }}>
-                      {formatValue(measurement.temperature)}°C
+                      {formatValue(measurement.temperature)}°C 
+                      <span style={{ 
+                        fontSize: '0.7rem', 
+                        color: 'white',
+                        fontWeight: 'bold',
+                        backgroundColor: getQcColor(measurement.temperature_qc),
+                        padding: '0.2rem 0.4rem',
+                        borderRadius: '4px',
+                        marginLeft: '0.3rem'
+                      }}>
+                        ({measurement.temperature_qc || 'N/A'})
+                      </span>
                     </td>
                     
                     {/* Temperature - Adjusted */}
                     <td style={{ color: '#e67e22', fontWeight: '600', fontSize: '0.9rem' }}>
-                      {formatValue(measurement.temperature_adjusted)}°C
-                      {measurement.temperature !== measurement.temperature_adjusted && (
-                        <div style={{ fontSize: '0.7rem', color: '#95a5a6', fontWeight: 'normal' }}>
-                          Δ: {formatValue(measurement.temperature_adjusted - measurement.temperature, 3)}
-                        </div>
-                      )}
+                      {formatValue(measurement.temperature_adjusted)}°C 
+                      <span style={{ 
+                        fontSize: '0.7rem', 
+                        color: 'white',
+                        fontWeight: 'bold',
+                        backgroundColor: getQcColor(measurement.temperature_adjusted_qc),
+                        padding: '0.2rem 0.4rem',
+                        borderRadius: '4px',
+                        marginLeft: '0.3rem'
+                      }}>
+                        ({measurement.temperature_adjusted_qc || 'N/A'})
+                      </span>
                     </td>
                     
                     {/* Salinity - Actual */}
                     <td style={{ color: '#3498db', fontWeight: '600', fontSize: '0.9rem' }}>
-                      {formatValue(measurement.salinity)}
+                      {formatValue(measurement.salinity)} 
+                      <span style={{ 
+                        fontSize: '0.7rem', 
+                        color: 'white',
+                        fontWeight: 'bold',
+                        backgroundColor: getQcColor(measurement.salinity_qc),
+                        padding: '0.2rem 0.4rem',
+                        borderRadius: '4px',
+                        marginLeft: '0.3rem'
+                      }}>
+                        ({measurement.salinity_qc || 'N/A'})
+                      </span>
                     </td>
                     
                     {/* Salinity - Adjusted */}
                     <td style={{ color: '#e67e22', fontWeight: '600', fontSize: '0.9rem' }}>
-                      {formatValue(measurement.salinity_adjusted)}
-                      {measurement.salinity !== measurement.salinity_adjusted && (
-                        <div style={{ fontSize: '0.7rem', color: '#95a5a6', fontWeight: 'normal' }}>
-                          Δ: {formatValue(measurement.salinity_adjusted - measurement.salinity, 3)}
-                        </div>
-                      )}
-                    </td>
-                    
-                    {/* QC Flags - Actual */}
-                    <td>
-                      <div style={{ display: 'flex', gap: '0.3rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                        <span 
-                          className="qc-badge"
-                          style={{ 
-                            backgroundColor: getQcColor(measurement.temperature_qc),
-                            color: 'white',
-                            fontSize: '0.7rem',
-                            padding: '0.2rem 0.4rem'
-                          }}
-                          title={`Temperature QC: ${getQcLabel(measurement.temperature_qc)}`}
-                        >
-                          T:{measurement.temperature_qc || 'N/A'}
-                        </span>
-                        <span 
-                          className="qc-badge"
-                          style={{ 
-                            backgroundColor: getQcColor(measurement.salinity_qc),
-                            color: 'white',
-                            fontSize: '0.7rem',
-                            padding: '0.2rem 0.4rem'
-                          }}
-                          title={`Salinity QC: ${getQcLabel(measurement.salinity_qc)}`}
-                        >
-                          S:{measurement.salinity_qc || 'N/A'}
-                        </span>
-                      </div>
-                    </td>
-                    
-                    {/* QC Flags - Adjusted */}
-                    <td>
-                      <div style={{ display: 'flex', gap: '0.3rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                        <span 
-                          className="qc-badge"
-                          style={{ 
-                            backgroundColor: getQcColor(measurement.temperature_adjusted_qc),
-                            color: 'white',
-                            fontSize: '0.7rem',
-                            padding: '0.2rem 0.4rem'
-                          }}
-                          title={`Temperature Adjusted QC: ${getQcLabel(measurement.temperature_adjusted_qc)}`}
-                        >
-                          T:{measurement.temperature_adjusted_qc || 'N/A'}
-                        </span>
-                        <span 
-                          className="qc-badge"
-                          style={{ 
-                            backgroundColor: getQcColor(measurement.salinity_adjusted_qc),
-                            color: 'white',
-                            fontSize: '0.7rem',
-                            padding: '0.2rem 0.4rem'
-                          }}
-                          title={`Salinity Adjusted QC: ${getQcLabel(measurement.salinity_adjusted_qc)}`}
-                        >
-                          S:{measurement.salinity_adjusted_qc || 'N/A'}
-                        </span>
-                      </div>
+                      {formatValue(measurement.salinity_adjusted)} 
+                      <span style={{ 
+                        fontSize: '0.7rem', 
+                        color: 'white',
+                        fontWeight: 'bold',
+                        backgroundColor: getQcColor(measurement.salinity_adjusted_qc),
+                        padding: '0.2rem 0.4rem',
+                        borderRadius: '4px',
+                        marginLeft: '0.3rem'
+                      }}>
+                        ({measurement.salinity_adjusted_qc || 'N/A'})
+                      </span>
                     </td>
                     
                     {/* Adjustment Errors */}
                     <td>
                       <div style={{ fontSize: '0.8rem', color: '#6c757d' }}>
+                        {measurement.pressure_adjusted_error && (
+                          <div>P: ±{formatValue(measurement.pressure_adjusted_error, 2)}</div>
+                        )}
                         {measurement.temperature_adjusted_error && (
                           <div>T: ±{formatValue(measurement.temperature_adjusted_error, 3)}°C</div>
                         )}
                         {measurement.salinity_adjusted_error && (
                           <div>S: ±{formatValue(measurement.salinity_adjusted_error, 3)}</div>
                         )}
-                        {!measurement.temperature_adjusted_error && !measurement.salinity_adjusted_error && (
+                        {!measurement.pressure_adjusted_error && !measurement.temperature_adjusted_error && !measurement.salinity_adjusted_error && (
                           <span style={{ color: '#bdc3c7' }}>N/A</span>
                         )}
                       </div>
