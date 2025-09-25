@@ -56,8 +56,8 @@ async def main():
     # Interactive mode
     print("\n🔍 Enter your oceanographic queries (type 'quit' to exit):")
     print("Examples:")
-    print("  - Temperature in the Pacific Ocean last month")
-    print("  - Compare salinity between Atlantic and Pacific")  
+    print("  - Average Temperature in the Indian Ocean")
+    print("  - Compare salinity between Atlantic and Indian")  
     print("  - Show temperature trends in Indian Ocean from 2020 to 2023")
     print()
     

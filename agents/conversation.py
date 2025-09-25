@@ -100,12 +100,15 @@ class ConversationAgent(BaseAgent):
     async def process(self, input_data: Any, context: Dict[str, Any] = None) -> AgentResult:
         """Generate natural language response from analysis results"""
         
+        print("test1")
+        
         try:
             if not isinstance(input_data, dict):
                 return AgentResult.error_result(
                     self.agent_name,
                     ["Input must be a dictionary containing analysis results"]
                 )
+            print("test2")
             
             # Extract all component results
             query_results = input_data.get('query_understanding', {})
@@ -115,11 +118,17 @@ class ConversationAgent(BaseAgent):
             visualization_results = input_data.get('visualization', {})
             validation_results = input_data.get('validation', {})
             
+            print("test3")
+            
             # Get conversation context
             conversation_context = self._determine_conversation_context(context or {})
             user_preferences = context.get('user_preferences', {})
             
+            print("test4")
+            
             self.logger.info(f"Generating {conversation_context.value} response")
+            
+            print("test5")
             
             # Synthesize response components
             response_components = await self._synthesize_response_components(
@@ -127,15 +136,21 @@ class ConversationAgent(BaseAgent):
                 analysis_results, visualization_results, validation_results
             )
             
+            print("test6")
+            
             # Generate natural language response
             natural_response = await self._generate_natural_response(
                 response_components, conversation_context, user_preferences
             )
             
+            print("test7")
+            
             # Create follow-up suggestions
             follow_ups = await self._generate_follow_up_suggestions(
                 response_components, query_results
             )
+            
+            print("test8")
             
             return AgentResult.success_result(
                 self.agent_name,
@@ -193,32 +208,48 @@ class ConversationAgent(BaseAgent):
                                             validation_results: Dict[str, Any]) -> ResponseComponents:
         """Synthesize all agent results into response components"""
         
+        print("test1.1")
+        
         # Extract key information
         original_query = query_results.get('original_query', 'your query')
         locations = geospatial_results.get('locations', [])
         data_count = data_results.get('metadata', {}).get('row_count', 0)
+        
+        print("test1.2")
         
         # Generate executive summary
         exec_summary = await self._create_executive_summary(
             original_query, locations, data_count, analysis_results
         )
         
+        print("test1.3")
+        
         # Extract key findings
         key_findings = self._extract_key_findings(analysis_results, validation_results)
         
+        print("test1.4")
+        
         # Format visualizations
         visualizations = self._format_visualizations(visualization_results)
+        
+        print("test1.5")
         
         # Generate recommendations
         recommendations = self._compile_recommendations(
             analysis_results, validation_results, query_results
         )
         
+        print("test1.6")
+        
         # Identify caveats and limitations
         caveats = self._identify_caveats(validation_results, data_results)
         
+        print("test1.7")
+        
         # Generate follow-up suggestions
         follow_ups = self._suggest_follow_ups(query_results, analysis_results)
+        
+        print("test1.8")
         
         return ResponseComponents(
             executive_summary=exec_summary,
@@ -234,13 +265,17 @@ class ConversationAgent(BaseAgent):
                                       data_count: int, analysis_results: Dict[str, Any]) -> str:
         """Create executive summary using LLM"""
         
+        print("test2.1")
+        
         # Prepare summary data
         summary_context = {
             'original_query': query,
             'locations_analyzed': [loc.get('name', 'Unknown') for loc in locations],
             'data_points': data_count,
-            'analysis_types': list(analysis_results.keys())
+            'analysis_types': list(analysis_results.keys()) #error here
         }
+        
+        print("test2.2")
         
         # Extract key statistics
         if 'descriptive' in analysis_results:

@@ -413,6 +413,11 @@ class AgentOrchestrator(BaseAgent):
         
         # Conversation Agent - gets all results
         elif agent_name == 'conversation':
+            print("mayur find the error here")
+            print("*"*20)
+            print(previous_results)
+            print("*"*20)
+            print("mayur end")
             return {
                 'query_understanding': previous_results.get('query_understanding', {}).data,
                 'geospatial': previous_results.get('geospatial', {}).data,
