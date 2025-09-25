@@ -286,9 +286,10 @@ class ConversationAgent(BaseAgent):
         
         print("test2.2")
         
-        # Extract key statistics
-        if 'descriptive' in analysis_results:
-            desc_stats = analysis_results['descriptive']
+        # Extract key statistics from nested analysis_results structure
+        actual_analysis = analysis_results.get('analysis_results', {})
+        if 'descriptive' in actual_analysis:
+            desc_stats = actual_analysis['descriptive']
             summary_context['parameters'] = list(desc_stats.keys())
             
             # Add notable statistics
@@ -307,8 +308,10 @@ class ConversationAgent(BaseAgent):
         
         Include:
         - What was analyzed (location, parameters, data scope)
-        - Key findings or patterns
+        - Key findings or patterns with ACTUAL VALUES from the statistics (never use placeholders like [insert value])
         - Context for significance
+        
+        IMPORTANT: If you have statistics in the data, use the actual numerical values. Never use placeholders.
         
         Keep it conversational and informative."""
         
@@ -336,17 +339,20 @@ class ConversationAgent(BaseAgent):
         
         findings = []
         
+        # Access nested analysis_results structure
+        actual_analysis = analysis_results.get('analysis_results', {})
+        
         # Descriptive statistics findings
-        if 'descriptive' in analysis_results:
-            desc_stats = analysis_results['descriptive']
+        if 'descriptive' in actual_analysis:
+            desc_stats = actual_analysis['descriptive']
             for param, stats in desc_stats.items():
                 if isinstance(stats, dict) and 'mean' in stats:
                     param_name = self._get_parameter_name(param)
-                    findings.append(f"{param_name} averaged {stats['mean']:.2f} across all measurements")
+                    findings.append(f"{param_name} averaged {stats['mean']:.2f}°C across all measurements")
         
         # Trend findings
-        if 'trend' in analysis_results:
-            trend_results = analysis_results['trend']
+        if 'trend' in actual_analysis:
+            trend_results = actual_analysis['trend']
             for param, trend in trend_results.items():
                 if isinstance(trend, dict) and 'trend_direction' in trend:
                     param_name = self._get_parameter_name(param)
@@ -355,8 +361,8 @@ class ConversationAgent(BaseAgent):
                         findings.append(f"{param_name} shows a statistically significant {direction} trend over time")
         
         # Anomaly findings
-        if 'anomaly' in analysis_results:
-            anomaly_results = analysis_results['anomaly']
+        if 'anomaly' in actual_analysis:
+            anomaly_results = actual_analysis['anomaly']
             for param, anomalies in anomaly_results.items():
                 if isinstance(anomalies, dict) and 'anomaly_percentage' in anomalies:
                     if anomalies['anomaly_percentage'] > 5:  # >5% anomalies worth mentioning

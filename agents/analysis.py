@@ -130,25 +130,24 @@ class AnalysisAgent(BaseAgent):
             self.logger.info(f"quality_report={quality_report}")
             # Perform requested analyses
             analysis_results = {}
-            self.logger.info(f"analysis_types={[atype.value for atype in analysis_types]}")
-# FIX: Compare the string 'analysis_type' to the .value of the Enum member
+            self.logger.info(f"analysis_types={[atype.value if hasattr(atype, 'value') else atype for atype in analysis_types]}")
 
             for analysis_type in analysis_types:
-                if analysis_type == AnalysisType.DESCRIPTIVE.value:
+                if analysis_type == AnalysisType.DESCRIPTIVE or analysis_type == AnalysisType.DESCRIPTIVE.value:
                     analysis_results['descriptive'] = await self._descriptive_analysis(df)
-                elif analysis_type == AnalysisType.TREND.value:
+                elif analysis_type == AnalysisType.TREND or analysis_type == AnalysisType.TREND.value:
                     analysis_results['trend'] = await self._trend_analysis(df)
-                elif analysis_type == AnalysisType.ANOMALY.value:
+                elif analysis_type == AnalysisType.ANOMALY or analysis_type == AnalysisType.ANOMALY.value:
                     analysis_results['anomaly'] = await self._anomaly_detection(df)
-                elif analysis_type == AnalysisType.CORRELATION.value:
+                elif analysis_type == AnalysisType.CORRELATION or analysis_type == AnalysisType.CORRELATION.value:
                     analysis_results['correlation'] = await self._correlation_analysis(df)
-                elif analysis_type == AnalysisType.SEASONAL.value:
+                elif analysis_type == AnalysisType.SEASONAL or analysis_type == AnalysisType.SEASONAL.value:
                     analysis_results['seasonal'] = await self._seasonal_analysis(df)
-                elif analysis_type == AnalysisType.SPATIAL.value:
+                elif analysis_type == AnalysisType.SPATIAL or analysis_type == AnalysisType.SPATIAL.value:
                     analysis_results['spatial'] = await self._spatial_analysis(df)
-                elif analysis_type == AnalysisType.COMPARATIVE.value:
+                elif analysis_type == AnalysisType.COMPARATIVE or analysis_type == AnalysisType.COMPARATIVE.value:
                     analysis_results['comparative'] = await self._comparative_analysis(df, context)
-                elif analysis_type == AnalysisType.CLIMATOLOGY.value:
+                elif analysis_type == AnalysisType.CLIMATOLOGY or analysis_type == AnalysisType.CLIMATOLOGY.value:
                     analysis_results['climatology'] = await self._climatology_analysis(df)
             # Generate insights using LLM
             insights = await self._generate_insights(analysis_results, df)
@@ -275,18 +274,52 @@ class AnalysisAgent(BaseAgent):
         
         results = {}
         
-        if 'parameter_value' in df.columns and 'parameter' in df.columns:
+        # Check for different possible column structures
+        value_column = None
+        if 'parameter_value' in df.columns:
+            value_column = 'parameter_value'
+        elif 'avg_value' in df.columns:
+            value_column = 'avg_value'
+        elif 'value' in df.columns:
+            value_column = 'value'
+        
+        if value_column and 'parameter' in df.columns:
             # Analysis by parameter
             for param in df['parameter'].unique():
-                param_data = df[df['parameter'] == param]['parameter_value']
+                param_data = df[df['parameter'] == param][value_column]
                 
                 if len(param_data) > 0:
-                    results[param] = self._calculate_metrics(param_data).to_dict()
+                    metrics = self._calculate_metrics(param_data)
+                    results[param] = {
+                        'mean': metrics.mean,
+                        'median': metrics.median,
+                        'std': metrics.std,
+                        'min': metrics.min,
+                        'max': metrics.max,
+                        'q25': metrics.q25,
+                        'q75': metrics.q75,
+                        'count': metrics.count,
+                        'skewness': metrics.skewness,
+                        'kurtosis': metrics.kurtosis
+                    }
         else:
             # Analysis of numeric columns
             numeric_columns = df.select_dtypes(include=[np.number]).columns
             for col in numeric_columns:
-                results[col] = self._calculate_metrics(df[col]).to_dict()
+                if col not in ['depth_bin', 'measurement_count']:  # Skip auxiliary columns
+                    metrics = self._calculate_metrics(df[col])
+                    results[col] = {
+                        'mean': metrics.mean,
+                        'median': metrics.median,
+                        'std': metrics.std,
+                        'min': metrics.min,
+                        'max': metrics.max,
+                        'q25': metrics.q25,
+                        'q75': metrics.q75,
+                        'count': metrics.count,
+                        'skewness': metrics.skewness,
+                        'kurtosis': metrics.kurtosis
+                    }
         
         return results
     
