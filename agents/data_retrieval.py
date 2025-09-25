@@ -16,6 +16,12 @@ import numpy as np
 
 from .base_agent import BaseAgent, AgentResult, LLMMessage
 
+# Add query-specific logging
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent))
+from utils.query_logging import get_query_logger
+
 class QueryType(Enum):
     """Types of database queries"""
     POINT_QUERY = "point_query"          # Single location/time
@@ -68,6 +74,10 @@ class DataRetrievalAgent(BaseAgent):
             user=config.database_config.username,
             password=config.database_config.password
         )
+        
+        # Query-specific logging manager
+        self.query_logger_manager = get_query_logger()
+        self.current_query_logger = None
         
         # Query templates for common operations
         self.query_templates = {
@@ -198,34 +208,71 @@ class DataRetrievalAgent(BaseAgent):
     async def process(self, input_data: Any, context: Dict[str, Any] = None) -> AgentResult:
         """Process operator graph and execute database queries"""
         
+        # Use shared query logger from context, or create new one as fallback
+        if context and 'current_query_logger' in context:
+            self.current_query_logger = context['current_query_logger']
+        else:
+            # Fallback: create new logger (for backward compatibility)
+            original_query = context.get('original_query', 'unknown_query') if context else 'unknown_query'
+            session_id = context.get('session_id', None) if context else None
+            self.current_query_logger = self.query_logger_manager.get_query_logger(original_query, session_id)
+        
         try:
+            # Log agent start
+            self.current_query_logger.log_agent_start(self.agent_name, input_data)
+            
             # Input should contain operator graph from Query Understanding Agent
             # and resolved locations from Geospatial Agent
             if not isinstance(input_data, dict):
-                return AgentResult.error_result(
-                    self.agent_name,
-                    ["Input must be a dictionary with operator graph and location data"]
+                error_msg = "Input must be a dictionary with operator graph and location data"
+                self.current_query_logger.log_error(
+                    self.agent_name, 
+                    ValueError(error_msg), "Input validation"
                 )
+                return AgentResult.error_result(self.agent_name, [error_msg])
             
             operator_graph = input_data.get('operator_graph')
             locations = input_data.get('locations', [])
             
+            self.current_query_logger.info(f"Operator graph type: {type(operator_graph)}")
+            self.current_query_logger.info(f"Number of locations: {len(locations)}")
+            
             if not operator_graph:
-                return AgentResult.error_result(
+                error_msg = "Missing operator_graph in input data"
+                self.current_query_logger.log_error(
                     self.agent_name,
-                    ["Missing operator_graph in input data"]
+                    ValueError(error_msg), "Input validation"
                 )
+                return AgentResult.error_result(self.agent_name, [error_msg])
             
             # Initialize database connection
+            self.current_query_logger.info("🔄 Initializing database connection...")
             await self._init_db_connection()
+            self.current_query_logger.info("✅ Database connection established")
             
             # Generate query plan from operator graph
+            self.current_query_logger.info("📋 Generating query plan from operator graph...")
             query_plan = await self._generate_query_plan(operator_graph, locations)
+            self.current_query_logger.info(f"✅ Query plan generated: {query_plan.query_type.value}")
+            
+            # Log the SQL query
+            self.current_query_logger.log_sql_query(
+                query_plan.sql_query, 
+                query_plan.parameters
+            )
             
             # Execute query
+            self.current_query_logger.info("⚡ Executing database query...")
             query_result = await self._execute_query(query_plan)
             
-            return AgentResult.success_result(
+            # Log database results
+            self.current_query_logger.log_database_result(
+                query_result.row_count,
+                query_result.execution_time,
+                list(query_result.data.columns)
+            )
+            
+            result = AgentResult.success_result(
                 self.agent_name,
                 {
                     'query_plan': self._query_plan_to_dict(query_plan),
@@ -240,14 +287,26 @@ class DataRetrievalAgent(BaseAgent):
                 {'rows_retrieved': query_result.row_count}
             )
             
+            # Log successful result
+            self.current_query_logger.log_result(self.agent_name, result)
+            return result
+            
         except Exception as e:
+            # Log error with full context
+            self.current_query_logger.log_error(
+                self.agent_name, e, "Query processing"
+            )
             self.logger.error(f"Error retrieving data: {str(e)}")
             return AgentResult.error_result(
                 self.agent_name,
                 [f"Failed to retrieve data: {str(e)}"]
             )
         finally:
+            # Clean up database connection
             await self._close_db_connection()
+            
+            # Don't close shared query logger - it will be closed by orchestrator
+            self.current_query_logger = None
     
     async def _init_db_connection(self):
         """Initialize database connection pool"""
@@ -648,6 +707,14 @@ class DataRetrievalAgent(BaseAgent):
                 
                 self.logger.info(f"Query executed successfully: {len(data)} rows in {execution_time:.2f}s")
                 
+                # Log to query-specific logger if available
+                if self.current_query_logger:
+                    self.current_query_logger.info(f"✅ Query execution completed successfully")
+                    self.current_query_logger.info(f"📊 Rows returned: {len(data)}")
+                    self.current_query_logger.info(f"⏱️  Execution time: {execution_time:.3f} seconds")
+                    if len(data) > 0:
+                        self.current_query_logger.info(f"📋 Sample of first row: {dict(data.iloc[0]) if len(data) > 0 else 'No data'}")
+                
                 return QueryResult(
                     data=data,
                     query=query_plan.sql_query,
@@ -661,6 +728,8 @@ class DataRetrievalAgent(BaseAgent):
                 
             except Exception as e:
                 self.logger.error(f"Query execution failed: {e}")
+                if self.current_query_logger:
+                    self.current_query_logger.error(f"❌ Query execution failed: {str(e)}")
                 raise
     
     def _query_plan_to_dict(self, query_plan: QueryPlan) -> Dict[str, Any]:

@@ -20,6 +20,7 @@ import base64
 from io import BytesIO
 
 from .base_agent import BaseAgent, AgentResult, LLMMessage
+from utils.query_logging import QueryLogger
 
 class VisualizationType(Enum):
     """Types of visualizations"""
@@ -61,6 +62,10 @@ class VisualizationAgent(BaseAgent):
     def __init__(self, config):
         super().__init__(config, "visualization")
         
+        # Query logging
+        self.query_logger_manager = None
+        self.current_query_logger = None
+        
         # Color schemes for different parameters
         self.color_schemes = {
             'TEMP': 'RdYlBu_r',       # Red-Yellow-Blue reversed for temperature
@@ -88,11 +93,27 @@ class VisualizationAgent(BaseAgent):
     async def process(self, input_data: Any, context: Dict[str, Any] = None) -> AgentResult:
         """Process data and generate visualizations"""
         
+        # Initialize query logger
+        if context and 'query_logger_manager' in context:
+            self.query_logger_manager = context['query_logger_manager']
+            self.current_query_logger = context.get('current_query_logger')
+        
+        if self.current_query_logger:
+            self.current_query_logger.log_agent_start("visualization", {
+                "input_type": type(input_data).__name__,
+                "data_length": len(input_data.get('data', []) if isinstance(input_data, dict) else []),
+                "has_analysis_results": 'analysis_results' in input_data if isinstance(input_data, dict) else False,
+                "context_keys": list(context.keys()) if context else []
+            })
+        
         try:
             if not isinstance(input_data, dict):
+                error_msg = "Input must be a dictionary containing data and analysis results"
+                if self.current_query_logger:
+                    self.current_query_logger.log_error("visualization", error_msg)
                 return AgentResult.error_result(
                     self.agent_name,
-                    ["Input must be a dictionary containing data and analysis results"]
+                    [error_msg]
                 )
             
             # Extract data and analysis results
@@ -101,15 +122,22 @@ class VisualizationAgent(BaseAgent):
             metadata = input_data.get('metadata', {})
             
             if not data_records:
+                error_msg = "No data provided for visualization"
+                if self.current_query_logger:
+                    self.current_query_logger.log_error("visualization", error_msg)
                 return AgentResult.error_result(
                     self.agent_name,
-                    ["No data provided for visualization"]
+                    [error_msg]
                 )
             
             df = pd.DataFrame(data_records)
             
             # Determine visualization type from context or operator graph
             viz_configs = await self._determine_visualizations(df, analysis_results, context or {})
+            
+            if self.current_query_logger:
+                self.current_query_logger.info(f"Generating {len(viz_configs)} visualizations")
+                self.current_query_logger.info(f"Visualization types: {[config.viz_type.value for config in viz_configs]}")
             
             self.logger.info(f"Generating {len(viz_configs)} visualizations")
             
@@ -126,30 +154,47 @@ class VisualizationAgent(BaseAgent):
                 if dashboard:
                     visualizations['dashboard'] = dashboard
             
+            result = {
+                'visualizations': {k: {
+                    'html': v.html_content,
+                    'config': v.json_config,
+                    'metadata': v.metadata,
+                    'type': v.viz_type.value
+                } for k, v in visualizations.items()},
+                'summary': {
+                    'total_visualizations': len(visualizations),
+                    'data_points': len(df),
+                    'parameters': list(df.get('parameter', df.select_dtypes(include=[np.number]).columns).unique())
+                }
+            }
+            
+            if self.current_query_logger:
+                self.current_query_logger.log_result("visualization", {
+                    'visualizations_created': len(visualizations),
+                    'visualization_types': list(visualizations.keys()),
+                    'data_points': len(df)
+                })
+            
             return AgentResult.success_result(
                 self.agent_name,
-                {
-                    'visualizations': {k: {
-                        'html': v.html_content,
-                        'config': v.json_config,
-                        'metadata': v.metadata,
-                        'type': v.viz_type.value
-                    } for k, v in visualizations.items()},
-                    'summary': {
-                        'total_visualizations': len(visualizations),
-                        'data_points': len(df),
-                        'parameters': list(df.get('parameter', df.select_dtypes(include=[np.number]).columns).unique())
-                    }
-                },
+                result,
                 {'visualizations_created': len(visualizations)}
             )
             
         except Exception as e:
             self.logger.error(f"Error creating visualizations: {str(e)}")
+            
+            if self.current_query_logger:
+                self.current_query_logger.log_error("visualization", str(e))
+                
             return AgentResult.error_result(
                 self.agent_name,
                 [f"Failed to create visualizations: {str(e)}"]
             )
+        finally:
+            # Cleanup query logger
+            if self.current_query_logger:
+                self.current_query_logger.cleanup()
     
     async def _determine_visualizations(self, df: pd.DataFrame, analysis_results: Dict[str, Any], 
                                       context: Dict[str, Any]) -> List[VisualizationConfig]:

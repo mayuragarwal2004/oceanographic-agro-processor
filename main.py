@@ -80,6 +80,7 @@ async def main():
             # Process query
             context = {
                 'session_id': session_id,
+                'original_query': query,
                 'user_preferences': {
                     'style': 'general',
                     'detail_level': 'medium'

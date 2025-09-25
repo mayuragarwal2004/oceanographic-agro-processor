@@ -18,6 +18,13 @@ from sklearn.decomposition import PCA
 from sklearn.cluster import DBSCAN
 
 from .base_agent import BaseAgent, AgentResult, LLMMessage
+from utils.query_logging import QueryLogger
+
+# Add query-specific logging
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent))
+from utils.query_logging import get_query_logger
 
 class AnalysisType(Enum):
     """Types of analysis operations"""
@@ -82,6 +89,10 @@ class AnalysisAgent(BaseAgent):
     def __init__(self, config):
         super().__init__(config, "analysis")
         
+        # Query logging
+        self.query_logger_manager = None
+        self.current_query_logger = None
+        
         # Analysis parameters
         self.anomaly_threshold = 2.5  # Standard deviations for anomaly detection
         self.trend_significance = 0.05  # P-value threshold for trend significance
@@ -102,19 +113,42 @@ class AnalysisAgent(BaseAgent):
     async def process(self, input_data: Any, context: Dict[str, Any] = None) -> AgentResult:
         """Process data and perform requested analysis"""
         
+        # Use shared query logger from context, or create new one as fallback
+        if context and 'current_query_logger' in context:
+            self.current_query_logger = context['current_query_logger']
+        else:
+            # Fallback: create new logger (for backward compatibility)
+            if context and 'query_logger_manager' in context:
+                self.query_logger_manager = context['query_logger_manager']
+                original_query = context.get('original_query', 'unknown_query')
+                session_id = context.get('session_id', None)
+                self.current_query_logger = self.query_logger_manager.get_query_logger(original_query, session_id)
+        
+        if self.current_query_logger:
+            self.current_query_logger.log_agent_start("analysis", {
+                "data_length": len(input_data.get('data', []) if isinstance(input_data, dict) else []),
+                "context_keys": list(context.keys()) if context else []
+            })
+        
         try:
             if not isinstance(input_data, dict) or 'data' not in input_data:
+                error_msg = "Input must be a dictionary with 'data' key containing DataFrame records"
+                if self.current_query_logger:
+                    self.current_query_logger.log_error("analysis", error_msg)
                 return AgentResult.error_result(
                     self.agent_name,
-                    ["Input must be a dictionary with 'data' key containing DataFrame records"]
+                    [error_msg]
                 )
             
             # Convert data records back to DataFrame
             data_records = input_data['data']
             if not data_records:
+                error_msg = "No data records provided for analysis"
+                if self.current_query_logger:
+                    self.current_query_logger.log_error("analysis", error_msg)
                 return AgentResult.error_result(
                     self.agent_name,
-                    ["No data records provided for analysis"]
+                    [error_msg]
                 )
             
             df = pd.DataFrame(data_records)
@@ -122,11 +156,20 @@ class AnalysisAgent(BaseAgent):
             # Get analysis requirements from context
             analysis_types = self._determine_analysis_types(context or {})
             
+            if self.current_query_logger:
+                self.current_query_logger.info(f"Performing {len(analysis_types)} types of analysis on {len(df)} records")
+                self.current_query_logger.info(f"Analysis types: {[atype.value for atype in analysis_types]}")
+            
             self.logger.info(f"Performing {len(analysis_types)} types of analysis on {len(df)} records")
             
             # Perform data quality checks
             self.logger.info("Raj reached till here 128")
             quality_report = self._check_data_quality(df)
+            
+            if self.current_query_logger:
+                self.current_query_logger.info(f"Data quality check completed")
+                self.current_query_logger.info(quality_report)
+            
             self.logger.info(f"quality_report={quality_report}")
             # Perform requested analyses
             analysis_results = {}
@@ -149,31 +192,45 @@ class AnalysisAgent(BaseAgent):
                     analysis_results['comparative'] = await self._comparative_analysis(df, context)
                 elif analysis_type == AnalysisType.CLIMATOLOGY or analysis_type == AnalysisType.CLIMATOLOGY.value:
                     analysis_results['climatology'] = await self._climatology_analysis(df)
+                    
             # Generate insights using LLM
             insights = await self._generate_insights(analysis_results, df)
             self.logger.info(f"insights={insights}")
+            
+            result = {
+                'analysis_results': analysis_results,
+                'quality_report': quality_report,
+                'insights': insights,
+                'data_summary': {
+                    'total_records': len(df),
+                    'parameters': list(df.get('parameter', df.columns).unique()) if 'parameter' in df.columns else list(df.columns),
+                    'date_range': self._get_date_range(df)
+                }
+            }
+            
+            if self.current_query_logger:
+                self.current_query_logger.log_result("analysis", result)
+            
             return AgentResult.success_result(
                 self.agent_name,
-                {
-                    'analysis_results': analysis_results,
-                    'quality_report': quality_report,
-                    'insights': insights,
-                    'data_summary': {
-                        'total_records': len(df),
-                        'parameters': list(df.get('parameter', df.columns).unique()) if 'parameter' in df.columns else list(df.columns),
-                        'date_range': self._get_date_range(df)
-                    }
-                },
+                result,
                 {'analyses_performed': len(analysis_results)}
             )
             
         except Exception as e:
             self.logger.info("Raj reached till here 170")
             self.logger.error(f"Error performing analysis: {str(e)}")
+            
+            if self.current_query_logger:
+                self.current_query_logger.log_error("analysis", str(e))
+                
             return AgentResult.error_result(
                 self.agent_name,
                 [f"Failed to perform analysis: {str(e)}"]
             )
+        finally:
+            # Don't close shared query logger - it will be closed by orchestrator
+            self.current_query_logger = None
     
     def _determine_analysis_types(self, context: Dict[str, Any]) -> List[AnalysisType]:
         """Determine which analyses to perform based on context"""

@@ -12,6 +12,7 @@ from enum import Enum
 from datetime import datetime
 
 from .base_agent import BaseAgent, AgentResult, LLMMessage
+from utils.query_logging import QueryLogger
 
 class ResponseType(Enum):
     """Types of responses to generate"""
@@ -55,6 +56,10 @@ class ConversationAgent(BaseAgent):
     
     def __init__(self, config):
         super().__init__(config, "conversation")
+        
+        # Query logging
+        self.query_logger_manager = None
+        self.current_query_logger = None
         
         # Response templates
         self.response_templates = {
@@ -100,13 +105,29 @@ class ConversationAgent(BaseAgent):
     async def process(self, input_data: Any, context: Dict[str, Any] = None) -> AgentResult:
         """Generate natural language response from analysis results"""
         
+        # Initialize query logger from shared context
+        self.current_query_logger = context.get('current_query_logger') if context else None
+        if not self.current_query_logger and self.query_logger_manager:
+            # Fallback to creating new logger if not provided in context
+            self.current_query_logger = self.query_logger_manager.get_query_logger_wrapper()
+        
+        if self.current_query_logger:
+            self.current_query_logger.log_agent_start("conversation", {
+                "input_type": type(input_data).__name__,
+                "components_available": list(input_data.keys()) if isinstance(input_data, dict) else [],
+                "context_keys": list(context.keys()) if context else []
+            })
+        
         print("test1")
         
         try:
             if not isinstance(input_data, dict):
+                error_msg = "Input must be a dictionary containing analysis results"
+                if self.current_query_logger:
+                    self.current_query_logger.log_error("conversation", error_msg)
                 return AgentResult.error_result(
                     self.agent_name,
-                    ["Input must be a dictionary containing analysis results"]
+                    [error_msg]
                 )
             print("test2")
             
@@ -123,6 +144,10 @@ class ConversationAgent(BaseAgent):
             # Get conversation context
             conversation_context = self._determine_conversation_context(context or {})
             user_preferences = context.get('user_preferences', {})
+            
+            if self.current_query_logger:
+                self.current_query_logger.info(f"Generating {conversation_context.value} response")
+                self.current_query_logger.info(f"Components: query={bool(query_results)}, geo={bool(geospatial_results)}, data={bool(data_results)}, analysis={bool(analysis_results)}, viz={bool(visualization_results)}, validation={bool(validation_results)}")
             
             print("test4")
             
@@ -152,33 +177,51 @@ class ConversationAgent(BaseAgent):
             
             print("test8")
             
+            result = {
+                'response': natural_response,
+                'components': {
+                    'executive_summary': response_components.executive_summary,
+                    'key_findings': response_components.key_findings,
+                    'recommendations': response_components.recommendations,
+                    'caveats': response_components.caveats
+                },
+                'visualizations': response_components.visualizations,
+                'follow_up_suggestions': follow_ups,
+                'metadata': {
+                    'conversation_context': conversation_context.value,
+                    'response_length': len(natural_response),
+                    'components_count': len(response_components.key_findings)
+                }
+            }
+            
+            if self.current_query_logger:
+                self.current_query_logger.log_result("conversation", {
+                    'response_generated': True,
+                    'response_length': len(natural_response),
+                    'key_findings_count': len(response_components.key_findings),
+                    'recommendations_count': len(response_components.recommendations),
+                    'follow_ups_count': len(follow_ups)
+                })
+            
             return AgentResult.success_result(
                 self.agent_name,
-                {
-                    'response': natural_response,
-                    'components': {
-                        'executive_summary': response_components.executive_summary,
-                        'key_findings': response_components.key_findings,
-                        'recommendations': response_components.recommendations,
-                        'caveats': response_components.caveats
-                    },
-                    'visualizations': response_components.visualizations,
-                    'follow_up_suggestions': follow_ups,
-                    'metadata': {
-                        'conversation_context': conversation_context.value,
-                        'response_length': len(natural_response),
-                        'components_count': len(response_components.key_findings)
-                    }
-                },
+                result,
                 {'response_generated': True}
             )
             
         except Exception as e:
             self.logger.error(f"Error generating conversation response: {str(e)}")
+            
+            if self.current_query_logger:
+                self.current_query_logger.log_error("conversation", str(e))
+                
             return AgentResult.error_result(
                 self.agent_name,
                 [f"Failed to generate response: {str(e)}"]
             )
+        finally:
+            # Set logger to None (orchestrator handles cleanup for shared logger)
+            self.current_query_logger = None
     
     def _determine_conversation_context(self, context: Dict[str, Any]) -> ConversationContext:
         """Determine the conversation context"""

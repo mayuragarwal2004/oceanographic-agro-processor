@@ -12,6 +12,12 @@ from enum import Enum
 
 from .base_agent import BaseAgent, AgentResult, LLMMessage
 
+# Add query-specific logging
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent))
+from utils.query_logging import get_query_logger
+
 class LocationType(Enum):
     """Types of geographic locations"""
     OCEAN = "ocean"
@@ -63,6 +69,10 @@ class GeospatialAgent(BaseAgent):
     
     def __init__(self, config):
         super().__init__(config, "geospatial")
+        
+        # Query-specific logging manager
+        self.query_logger_manager = get_query_logger()
+        self.current_query_logger = None
         
         # Predefined ocean/sea boundaries (approximate)
         self.predefined_locations = {
@@ -143,34 +153,55 @@ class GeospatialAgent(BaseAgent):
     async def process(self, input_data: Any, context: Dict[str, Any] = None) -> AgentResult:
         """Process location names and resolve to geographic coordinates"""
         
+        # Use shared query logger from context, or create new one as fallback
+        if context and 'current_query_logger' in context:
+            self.current_query_logger = context['current_query_logger']
+        else:
+            # Fallback: create new logger (for backward compatibility)
+            original_query = context.get('original_query', 'unknown_query') if context else 'unknown_query'
+            session_id = context.get('session_id', None) if context else None
+            self.current_query_logger = self.query_logger_manager.get_query_logger(original_query, session_id)
+        
         try:
+            # Log agent start
+            self.current_query_logger.log_agent_start(self.agent_name, input_data)
+            
             # Input can be a list of location names or a spatial query dict
             if isinstance(input_data, list):
                 location_names = input_data
             elif isinstance(input_data, dict) and 'locations' in input_data:
                 location_names = input_data['locations']
             else:
-                return AgentResult.error_result(
+                error_msg = "Input must be a list of location names or dict with 'locations' key"
+                self.current_query_logger.log_error(
                     self.agent_name,
-                    ["Input must be a list of location names or dict with 'locations' key"]
+                    ValueError(error_msg), "Input validation"
                 )
+                return AgentResult.error_result(self.agent_name, [error_msg])
             
             self.logger.info(f"Resolving {len(location_names)} locations")
+            self.current_query_logger.info(f"🌍 Resolving {len(location_names)} locations: {location_names}")
             
             # Resolve each location
             resolved_locations = []
             for location_name in location_names:
+                self.current_query_logger.info(f"🔍 Resolving location: '{location_name}'")
                 location = await self._resolve_location(location_name)
                 if location:
                     resolved_locations.append(location)
                     self.logger.info(f"Resolved '{location_name}' -> {location.name} (conf: {location.confidence:.2f})")
+                    self.current_query_logger.info(f"✅ Resolved '{location_name}' -> {location.name} (confidence: {location.confidence:.2f})")
+                    self.current_query_logger.info(f"   Bounds: N:{location.bounds.north}, S:{location.bounds.south}, E:{location.bounds.east}, W:{location.bounds.west}")
                 else:
                     self.logger.warning(f"Could not resolve location: {location_name}")
+                    self.current_query_logger.warning(f"❌ Could not resolve location: {location_name}")
+            
+            self.current_query_logger.info(f"✅ Successfully resolved {len(resolved_locations)}/{len(location_names)} locations")
             
             # Generate spatial query
             spatial_query = self._generate_spatial_query(resolved_locations, context or {})
             
-            return AgentResult.success_result(
+            result = AgentResult.success_result(
                 self.agent_name,
                 {
                     'locations': [self._location_to_dict(loc) for loc in resolved_locations],
@@ -183,12 +214,23 @@ class GeospatialAgent(BaseAgent):
                 {'total_locations': len(resolved_locations)}
             )
             
+            # Log successful result
+            self.current_query_logger.log_result(self.agent_name, result)
+            return result
+            
         except Exception as e:
+            # Log error with full context
+            self.current_query_logger.log_error(
+                self.agent_name, e, "Location processing"
+            )
             self.logger.error(f"Error processing locations: {str(e)}")
             return AgentResult.error_result(
                 self.agent_name,
                 [f"Failed to process locations: {str(e)}"]
             )
+        finally:
+            # Don't close shared query logger - it will be closed by orchestrator
+            self.current_query_logger = None
     
     async def _resolve_location(self, location_name: str) -> Optional[Location]:
         """Resolve a single location name to coordinates"""

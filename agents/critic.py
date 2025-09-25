@@ -13,6 +13,7 @@ from enum import Enum
 from datetime import datetime, timedelta
 
 from .base_agent import BaseAgent, AgentResult, LLMMessage
+from utils.query_logging import QueryLogger
 
 class ValidationLevel(Enum):
     """Levels of validation checks"""
@@ -53,6 +54,10 @@ class CriticAgent(BaseAgent):
     
     def __init__(self, config):
         super().__init__(config, "critic")
+        
+        # Query logging
+        self.query_logger_manager = None
+        self.current_query_logger = None
         
         # Scientific parameter ranges (oceanographic standards)
         self.parameter_ranges = {
@@ -107,11 +112,28 @@ class CriticAgent(BaseAgent):
     async def process(self, input_data: Any, context: Dict[str, Any] = None) -> AgentResult:
         """Validate data and analysis results"""
         
+        # Initialize query logger
+        if context and 'query_logger_manager' in context:
+            self.query_logger_manager = context['query_logger_manager']
+            self.current_query_logger = context.get('current_query_logger')
+        
+        if self.current_query_logger:
+            self.current_query_logger.log_agent_start("critic", {
+                "input_type": type(input_data).__name__,
+                "data_length": len(input_data.get('data', []) if isinstance(input_data, dict) else []),
+                "has_analysis_results": 'analysis_results' in input_data if isinstance(input_data, dict) else False,
+                "has_visualizations": 'visualizations' in input_data if isinstance(input_data, dict) else False,
+                "context_keys": list(context.keys()) if context else []
+            })
+        
         try:
             if not isinstance(input_data, dict):
+                error_msg = "Input must be a dictionary containing data and analysis results"
+                if self.current_query_logger:
+                    self.current_query_logger.log_error("critic", error_msg)
                 return AgentResult.error_result(
                     self.agent_name,
-                    ["Input must be a dictionary containing data and analysis results"]
+                    [error_msg]
                 )
             
             # Extract components to validate
@@ -122,6 +144,10 @@ class CriticAgent(BaseAgent):
             
             # Determine validation level
             validation_level = self._determine_validation_level(context or {})
+            
+            if self.current_query_logger:
+                self.current_query_logger.info(f"Performing {validation_level.value} validation on {len(raw_data)} records")
+                self.current_query_logger.info(f"Components to validate: data={len(raw_data)}, analysis={len(analysis_results)}, visualizations={len(visualizations)}")
             
             self.logger.info(f"Performing {validation_level.value} validation on {len(raw_data)} records")
             
@@ -134,32 +160,51 @@ class CriticAgent(BaseAgent):
             enhanced_recommendations = await self._generate_recommendations(validation_report)
             validation_report.recommendations.extend(enhanced_recommendations)
             
+            result = {
+                'validation_report': {
+                    'overall_score': validation_report.overall_score,
+                    'approved': validation_report.approved,
+                    'issues': [self._issue_to_dict(issue) for issue in validation_report.issues],
+                    'summary': validation_report.summary,
+                    'recommendations': validation_report.recommendations
+                },
+                'quality_metrics': self._calculate_quality_metrics(raw_data, validation_report),
+                'validation_metadata': {
+                    'level': validation_level.value,
+                    'timestamp': datetime.now().isoformat(),
+                    'rules_applied': list(self.validation_rules.keys())
+                }
+            }
+            
+            
+            if self.current_query_logger:
+                self.current_query_logger.log_result("critic", {
+                    'overall_score': validation_report.overall_score,
+                    'approved': validation_report.approved,
+                    'issues_found': len(validation_report.issues),
+                    'validation_level': validation_level.value
+                })
+            
             return AgentResult.success_result(
                 self.agent_name,
-                {
-                    'validation_report': {
-                        'overall_score': validation_report.overall_score,
-                        'approved': validation_report.approved,
-                        'issues': [self._issue_to_dict(issue) for issue in validation_report.issues],
-                        'summary': validation_report.summary,
-                        'recommendations': validation_report.recommendations
-                    },
-                    'quality_metrics': self._calculate_quality_metrics(raw_data, validation_report),
-                    'validation_metadata': {
-                        'level': validation_level.value,
-                        'timestamp': datetime.now().isoformat(),
-                        'rules_applied': list(self.validation_rules.keys())
-                    }
-                },
+                result,
                 {'issues_found': len(validation_report.issues)}
             )
             
         except Exception as e:
             self.logger.error(f"Error during validation: {str(e)}")
+            
+            if self.current_query_logger:
+                self.current_query_logger.log_error("critic", str(e))
+                
             return AgentResult.error_result(
                 self.agent_name,
                 [f"Failed to validate results: {str(e)}"]
             )
+        finally:
+            # Cleanup query logger
+            if self.current_query_logger:
+                self.current_query_logger.cleanup()
     
     def _determine_validation_level(self, context: Dict[str, Any]) -> ValidationLevel:
         """Determine appropriate validation level based on context"""

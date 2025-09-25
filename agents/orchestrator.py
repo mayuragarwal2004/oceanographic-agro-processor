@@ -20,6 +20,7 @@ from .analysis import AnalysisAgent
 from .visualization import VisualizationAgent
 from .critic import CriticAgent
 from .conversation import ConversationAgent
+from utils.query_logging import QueryLogger
 
 class ExecutionStrategy(Enum):
     """Strategies for agent execution"""
@@ -62,6 +63,9 @@ class AgentOrchestrator(BaseAgent):
     
     def __init__(self, config):
         super().__init__(config, "orchestrator")
+        
+        # Initialize query logging manager
+        self.query_logger_manager = QueryLogger()
         
         # Initialize all agents
         self.agents = {
@@ -113,9 +117,12 @@ class AgentOrchestrator(BaseAgent):
             self.logger.info(f"Processing query: {user_query[:100]}...")
             session_id = context.get('session_id', f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
             
+            # Create single query logger wrapper for the entire session
+            query_logger_wrapper = self.query_logger_manager.get_query_logger_wrapper(user_query, session_id)
+            
             self.logger.info(f"Starting orchestration for query: {user_query[:100]}...")
             
-            # Create execution context
+            # Create execution context with query logging
             execution_context = ExecutionContext(
                 session_id=session_id,
                 original_query=user_query,
@@ -125,11 +132,19 @@ class AgentOrchestrator(BaseAgent):
                 start_time=datetime.now()
             )
             
-            # Generate execution plan
-            execution_plan = await self._create_execution_plan(user_query, context or {})
+            # Add query logging to context for all agents
+            shared_context = {
+                **(context or {}),
+                'query_logger_manager': self.query_logger_manager,
+                'current_query_logger': query_logger_wrapper,  # Pass the wrapper
+                'original_query': user_query
+            }
             
-            # Execute workflow
-            final_result = await self._execute_workflow(execution_plan, execution_context)
+            # Generate execution plan
+            execution_plan = await self._create_execution_plan(user_query, shared_context)
+            
+            # Execute workflow with shared logging context
+            final_result = await self._execute_workflow(execution_plan, execution_context, shared_context)
             
             # Calculate total execution time
             total_time = (datetime.now() - execution_context.start_time).total_seconds()
@@ -202,7 +217,7 @@ class AgentOrchestrator(BaseAgent):
             estimated_duration=len(stages) * 30  # Rough estimate: 30s per stage
         )
     
-    async def _execute_workflow(self, plan: ExecutionPlan, context: ExecutionContext) -> Dict[str, AgentResult]:
+    async def _execute_workflow(self, plan: ExecutionPlan, context: ExecutionContext, shared_context: Dict[str, Any]) -> Dict[str, AgentResult]:
         """Execute the complete workflow according to the plan"""
         
         results = {}
@@ -220,11 +235,11 @@ class AgentOrchestrator(BaseAgent):
                 # Execute agents in this stage
                 if plan.strategy == ExecutionStrategy.PARALLEL and len(agents_for_stage) > 1:
                     stage_results = await self._execute_agents_parallel(
-                        agents_for_stage, context, results
+                        agents_for_stage, context, results, shared_context
                     )
                 else:
                     stage_results = await self._execute_agents_sequential(
-                        agents_for_stage, context, results
+                        agents_for_stage, context, results, shared_context
                     )
                 
                 # Update results
@@ -251,7 +266,8 @@ class AgentOrchestrator(BaseAgent):
     
     async def _execute_agents_sequential(self, agent_names: List[str], 
                                        context: ExecutionContext,
-                                       previous_results: Dict[str, AgentResult]) -> Dict[str, AgentResult]:
+                                       previous_results: Dict[str, AgentResult],
+                                       shared_context: Dict[str, Any]) -> Dict[str, AgentResult]:
         """Execute agents sequentially"""
         
         results = {}
@@ -266,17 +282,20 @@ class AgentOrchestrator(BaseAgent):
                 agent_input = await self._prepare_agent_input(agent_name, context, previous_results)
                 agent_context = await self._prepare_agent_context(agent_name, context, previous_results)
                 
+                # Merge with shared logging context
+                merged_context = {**agent_context, **shared_context}
+                
                 # Log agent input data
                 self.logger.info(f"=== AGENT INPUT for {agent_name} ===")
                 self.logger.info(f"Input Data Type: {type(agent_input)}")
                 self.logger.info(f"Input Data: {agent_input}")
-                self.logger.info(f"Context: {agent_context}")
+                self.logger.info(f"Context: {merged_context}")
                 self.logger.info(f"=== END AGENT INPUT ===")
                 
                 # Execute agent with timeout
                 self.logger.info(f"Executing agent: {agent_name}")
                 result = await asyncio.wait_for(
-                    self.agents[agent_name].process(agent_input, agent_context),
+                    self.agents[agent_name].process(agent_input, merged_context),
                     timeout=self.timeout_per_agent
                 )
                 
@@ -314,7 +333,8 @@ class AgentOrchestrator(BaseAgent):
     
     async def _execute_agents_parallel(self, agent_names: List[str],
                                      context: ExecutionContext,
-                                     previous_results: Dict[str, AgentResult]) -> Dict[str, AgentResult]:
+                                     previous_results: Dict[str, AgentResult],
+                                     shared_context: Dict[str, Any]) -> Dict[str, AgentResult]:
         """Execute independent agents in parallel"""
         
         # Filter agents that can run in parallel (no dependencies on each other)
@@ -338,9 +358,12 @@ class AgentOrchestrator(BaseAgent):
                     agent_input = await self._prepare_agent_input(agent_name, context, previous_results)
                     agent_context = await self._prepare_agent_context(agent_name, context, previous_results)
                     
+                    # Merge with shared logging context
+                    merged_context = {**agent_context, **shared_context}
+                    
                     self.logger.info(f"Executing agent (parallel): {agent_name}")
                     result = await asyncio.wait_for(
-                        self.agents[agent_name].process(agent_input, agent_context),
+                        self.agents[agent_name].process(agent_input, merged_context),
                         timeout=self.timeout_per_agent
                     )
                     
@@ -464,6 +487,7 @@ class AgentOrchestrator(BaseAgent):
         
         agent_context = {
             'session_id': context.session_id,
+            'original_query': context.original_query,
             'user_preferences': context.user_preferences,
             'execution_metadata': context.execution_metadata
         }

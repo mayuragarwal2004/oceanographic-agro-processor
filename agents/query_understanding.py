@@ -13,6 +13,12 @@ from enum import Enum
 
 from .base_agent import BaseAgent, AgentResult, LLMMessage, extract_json_string
 
+# Add query-specific logging
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent))
+from utils.query_logging import get_query_logger
+
 class ComparisonIntent(Enum):
     """Types of comparison intents"""
     NONE = "none"
@@ -64,6 +70,10 @@ class QueryUnderstandingAgent(BaseAgent):
     def __init__(self, config):
         super().__init__(config, "query_understanding")
         
+        # Query-specific logging manager
+        self.query_logger_manager = get_query_logger()
+        self.current_query_logger = None
+        
         # Known oceanographic parameters
         self.known_parameters = {
             'temperature': ['temp', 'temperature', 'sst', 'sea surface temperature'],
@@ -83,38 +93,72 @@ class QueryUnderstandingAgent(BaseAgent):
     async def process(self, input_data: Any, context: Dict[str, Any] = None) -> AgentResult:
         """Process a user query and extract structured information"""
         
+        # Use shared query logger from context, or create new one as fallback
+        if context and 'current_query_logger' in context:
+            self.current_query_logger = context['current_query_logger']
+        else:
+            # Fallback: create new logger (for backward compatibility)
+            original_query = input_data if isinstance(input_data, str) else 'unknown_query'
+            session_id = context.get('session_id', None) if context else None
+            self.current_query_logger = self.query_logger_manager.get_query_logger(original_query, session_id)
+        
         try:
+            # Log agent start
+            self.current_query_logger.log_agent_start(self.agent_name, input_data)
+            
             if not isinstance(input_data, str):
-                return AgentResult.error_result(
+                error_msg = "Input must be a string query"
+                self.current_query_logger.log_error(
                     self.agent_name,
-                    ["Input must be a string query"]
+                    ValueError(error_msg), "Input validation"
                 )
+                return AgentResult.error_result(self.agent_name, [error_msg])
             
             user_query = input_data.strip()
             self.logger.info(f"Processing query: {user_query[:100]}...")
+            self.current_query_logger.info(f"🔍 Processing query: {user_query}")
             
             # Extract entities using LLM
+            self.current_query_logger.info("🤖 Extracting entities with LLM...")
             entities = await self._extract_entities_with_llm(user_query)
+            self.current_query_logger.info("✅ Entities extracted successfully")
+            self.current_query_logger.info("Extracted entities:")
+            self.current_query_logger.info(self.query_logger_manager._format_data(entities.__dict__ if hasattr(entities, '__dict__') else entities))
             
             # Generate operator graph
+            self.current_query_logger.info("📊 Generating operator graph...")
             operator_graph = await self._generate_operator_graph(entities, user_query)
+            self.current_query_logger.info("✅ Operator graph generated successfully")
+            self.current_query_logger.info("Operator graph:")
+            self.current_query_logger.info(self.query_logger_manager._format_data(operator_graph.__dict__ if hasattr(operator_graph, '__dict__') else operator_graph))
             
-            return AgentResult.success_result(
+            result = AgentResult.success_result(
                 self.agent_name,
                 {
                     'entities': entities,
                     'operator_graph': operator_graph,
                     'original_query': user_query
                 },
-                {'confidence': entities.confidence_score}
+                {'confidence': entities.confidence_score if hasattr(entities, 'confidence_score') else 0.8}
             )
             
+            # Log successful result
+            self.current_query_logger.log_result(self.agent_name, result)
+            return result
+            
         except Exception as e:
+            # Log error with full context
+            self.current_query_logger.log_error(
+                self.agent_name, e, "Query processing"
+            )
             self.logger.error(f"Error processing query: {str(e)}")
             return AgentResult.error_result(
                 self.agent_name,
                 [f"Failed to process query: {str(e)}"]
             )
+        finally:
+            # Don't close shared query logger - it will be closed by orchestrator
+            self.current_query_logger = None
     
     async def _extract_entities_with_llm(self, query: str) -> ExtractedEntities:
         """Use LLM to extract entities from the query"""
