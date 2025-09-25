@@ -159,15 +159,41 @@ class VisualizationAgent(BaseAgent):
         
         # Check operator graph for visualization hints
         operator_graph = context.get('operator_graph', {})
-        nodes = operator_graph.get('nodes', [])
+        
+        # Handle OperatorGraph object vs dictionary
+        if hasattr(operator_graph, 'nodes'):
+            nodes = operator_graph.nodes
+        elif isinstance(operator_graph, dict):
+            nodes = operator_graph.get('nodes', [])
+        else:
+            nodes = []
         
         viz_node = None
         for node in nodes:
-            if node.get('operation') == 'visualization':
+            # Handle both dictionary and object nodes
+            if hasattr(node, 'operation'):
+                operation = node.operation
+                parameters = getattr(node, 'parameters', {})
+            elif isinstance(node, dict):
+                operation = node.get('operation')
+                parameters = node.get('parameters', {})
+            else:
+                continue
+                
+            if operation == 'visualization':
                 viz_node = node
                 break
         
-        requested_type = viz_node.get('parameters', {}).get('type', 'summary_map') if viz_node else 'summary_map'
+        # Get requested visualization type
+        if viz_node:
+            if hasattr(viz_node, 'parameters'):
+                requested_type = viz_node.parameters.get('type', 'summary_map')
+            elif isinstance(viz_node, dict):
+                requested_type = viz_node.get('parameters', {}).get('type', 'summary_map')
+            else:
+                requested_type = 'summary_map'
+        else:
+            requested_type = 'summary_map'
         
         # Determine available data columns
         has_spatial = all(col in df.columns for col in ['latitude', 'longitude'])

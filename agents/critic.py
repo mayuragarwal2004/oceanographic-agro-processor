@@ -462,29 +462,198 @@ class CriticAgent(BaseAgent):
         return issues
     
     def _validate_salinity_range(self, data: pd.DataFrame) -> List[ValidationIssue]:
-        """Validate salinity values"""
-        # Placeholder - would be implemented based on specific requirements
-        return []
-    
+        """Validate salinity values against expected ranges"""
+        issues = []
+        
+        if 'parameter' not in data.columns or 'parameter_value' not in data.columns:
+            return issues
+        
+        sal_data = data[data['parameter'] == 'PSAL']
+        if len(sal_data) == 0:
+            return issues
+        
+        param_range = self.parameter_ranges['PSAL']
+        values = sal_data['parameter_value'].dropna()
+        
+        # Global range violations
+        out_of_range = values[(values < param_range['global_min']) | (values > param_range['global_max'])]
+        if len(out_of_range) > 0:
+            issues.append(ValidationIssue(
+                issue_id="salinity_global_range_violation",
+                level=IssueLevel.ERROR,
+                category="scientific_validity",
+                description=f"{len(out_of_range)} salinity values outside global range "
+                            f"({param_range['global_min']}-{param_range['global_max']} PSU)",
+                affected_data=f"{len(out_of_range)}/{len(values)} PSAL values",
+                recommendation="Review salinity sensor calibration and data processing steps"
+            ))
+        
+        # Typical open ocean range check
+        atypical = values[(values < param_range['typical_min']) | (values > param_range['typical_max'])]
+        if len(atypical) / len(values) > 0.2:  # >20% of values are atypical
+            issues.append(ValidationIssue(
+                issue_id="salinity_atypical_distribution",
+                level=IssueLevel.WARNING,
+                category="scientific_validity",
+                description=f"Large fraction of salinity values ({len(atypical)}/{len(values)}) outside typical open ocean range "
+                            f"({param_range['typical_min']}-{param_range['typical_max']} PSU)",
+                affected_data="PSAL distribution",
+                recommendation="Verify if dataset includes coastal or estuarine waters where salinity is expected to vary"
+            ))
+        
+        return issues
+
     def _validate_pressure_consistency(self, data: pd.DataFrame) -> List[ValidationIssue]:
-        """Validate pressure measurements"""
-        # Placeholder - would be implemented based on specific requirements  
-        return []
-    
+        """Validate pressure (depth) measurements for monotonicity and physical limits"""
+        issues = []
+        
+        if 'pressure' not in data.columns:
+            return issues
+        
+        values = data['pressure'].dropna()
+        if len(values) == 0:
+            return issues
+        
+        # Global max depth
+        max_depth = self.parameter_ranges['PRES']['global_max']
+        invalid = values[values > max_depth]
+        if len(invalid) > 0:
+            issues.append(ValidationIssue(
+                issue_id="pressure_exceeds_max",
+                level=IssueLevel.ERROR,
+                category="scientific_validity",
+                description=f"{len(invalid)} pressure values exceed maximum ocean depth ({max_depth} dbar)",
+                affected_data=f"{len(invalid)} pressure readings",
+                recommendation="Check unit consistency (e.g., Pa vs dbar) and data source validity"
+            ))
+        
+        # Monotonicity within profile (if profile_date exists)
+        if 'profile_date' in data.columns:
+            grouped = data.groupby('profile_date')
+            for ts, grp in grouped:
+                sorted_grp = grp.sort_values('pressure')
+                if not sorted_grp['pressure'].is_monotonic_increasing:
+                    issues.append(ValidationIssue(
+                        issue_id=f"non_monotonic_pressure_{ts}",
+                        level=IssueLevel.WARNING,
+                        category="data_quality",
+                        description=f"Non-monotonic pressure profile detected at {ts}",
+                        affected_data=f"{len(grp)} records in profile {ts}",
+                        recommendation="Ensure proper ordering of depth profiles"
+                    ))
+        
+        return issues
+
     def _validate_temporal_consistency(self, data: pd.DataFrame) -> List[ValidationIssue]:
-        """Validate temporal consistency"""
-        # Placeholder - would be implemented based on specific requirements
-        return []
-    
+        """Check for temporal consistency in time series data"""
+        issues = []
+        
+        if 'profile_date' not in data.columns:
+            return issues
+        
+        # Parse to datetime if needed
+        try:
+            times = pd.to_datetime(data['profile_date'], errors='coerce').dropna()
+        except Exception:
+            return issues
+        
+        if len(times) < 2:
+            return issues
+        
+        diffs = times.sort_values().diff().dropna()
+        
+        # Look for unrealistic time gaps (e.g., duplicates or gaps > 1 year)
+        if (diffs == pd.Timedelta(0)).any():
+            issues.append(ValidationIssue(
+                issue_id="duplicate_timestamps",
+                level=IssueLevel.WARNING,
+                category="temporal_consistency",
+                description="Duplicate timestamps detected in profile data",
+                affected_data="profile_date",
+                recommendation="Verify time recording process and deduplicate entries"
+            ))
+        
+        if (diffs > pd.Timedelta(days=365)).any():
+            issues.append(ValidationIssue(
+                issue_id="large_temporal_gap",
+                level=IssueLevel.INFO,
+                category="temporal_consistency",
+                description="Unusually large gaps (>1 year) between consecutive observations",
+                affected_data="profile_date",
+                recommendation="Confirm data continuity; large gaps may reflect incomplete records"
+            ))
+        
+        return issues
+
     def _validate_spatial_consistency(self, data: pd.DataFrame) -> List[ValidationIssue]:
-        """Validate spatial consistency"""
-        # Placeholder - would be implemented based on specific requirements
-        return []
-    
+        """Check for spatial consistency (lat/lon ranges, duplicates, clustering)"""
+        issues = []
+        
+        if 'latitude' not in data.columns or 'longitude' not in data.columns:
+            return issues
+        
+        lat = data['latitude'].dropna()
+        lon = data['longitude'].dropna()
+        
+        # Range check
+        if ((lat < -90) | (lat > 90)).any() or ((lon < -180) | (lon > 180)).any():
+            issues.append(ValidationIssue(
+                issue_id="invalid_coordinates",
+                level=IssueLevel.ERROR,
+                category="spatial_consistency",
+                description="Detected latitude/longitude values outside valid ranges",
+                affected_data="latitude/longitude",
+                recommendation="Verify coordinate system and units"
+            ))
+        
+        # Check for clustering (all points nearly identical)
+        if len(lat) > 10 and lat.std() < 1e-4 and lon.std() < 1e-4:
+            issues.append(ValidationIssue(
+                issue_id="spatial_clustering",
+                level=IssueLevel.WARNING,
+                category="spatial_consistency",
+                description="Most observations located at nearly identical coordinates",
+                affected_data="latitude/longitude",
+                recommendation="Check if dataset represents a fixed mooring; if not, review location recording"
+            ))
+        
+        return issues
+
     def _validate_statistical_results(self, analysis_results: Dict[str, Any]) -> List[ValidationIssue]:
-        """Validate statistical analysis results"""
-        # Placeholder - would be implemented based on specific requirements
-        return []
+        """Validate higher-level statistical analysis outputs"""
+        issues = []
+        
+        if not analysis_results:
+            return issues
+        
+        # Correlation matrix validation
+        if 'correlations' in analysis_results and isinstance(analysis_results['correlations'], dict):
+            for pair, corr in analysis_results['correlations'].items():
+                if abs(corr) > self.stat_thresholds['correlation_threshold']:
+                    issues.append(ValidationIssue(
+                        issue_id=f"high_correlation_{pair}",
+                        level=IssueLevel.INFO,
+                        category="statistical_validity",
+                        description=f"Very high correlation ({corr:.2f}) detected between {pair}",
+                        affected_data="correlation_matrix",
+                        recommendation="Check for redundancy or multicollinearity in analysis"
+                    ))
+        
+        # Sample size adequacy
+        if 'sample_sizes' in analysis_results and isinstance(analysis_results['sample_sizes'], dict):
+            for param, n in analysis_results['sample_sizes'].items():
+                if n < self.stat_thresholds['min_sample_size']:
+                    issues.append(ValidationIssue(
+                        issue_id=f"insufficient_sample_{param}",
+                        level=IssueLevel.WARNING,
+                        category="statistical_validity",
+                        description=f"Insufficient sample size for {param}: n={n}, minimum required {self.stat_thresholds['min_sample_size']}",
+                        affected_data=f"{param} sample",
+                        recommendation="Collect more data before drawing statistical conclusions"
+                    ))
+        
+        return issues
+
     
     def _calculate_overall_score(self, issues: List[ValidationIssue], data_size: int) -> float:
         """Calculate overall quality score (0-100)"""

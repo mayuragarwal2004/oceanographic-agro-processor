@@ -12,7 +12,34 @@ from dataclasses import dataclass
 from .llm import BaseLLMConnector, LLMMessage, LLMResponse, LLMConnectorFactory
 from .config import AgentSystemConfig
 
-def extract_json_string(s: str) -> str:
+
+class ColoredFormatter(logging.Formatter):
+    """Custom formatter to add colors to different log levels"""
+    
+    # ANSI color codes
+    COLORS = {
+        'DEBUG': '\033[36m',      # Cyan
+        'INFO': '\033[37m',       # White
+        'WARNING': '\033[33m',    # Yellow
+        'ERROR': '\033[31m',      # Red
+        'CRITICAL': '\033[35m',   # Magenta
+    }
+    RESET = '\033[0m'  # Reset color
+    
+    def format(self, record):
+        # Get the original formatted message
+        formatted_message = super().format(record)
+        
+        # Add color based on log level
+        color = self.COLORS.get(record.levelname, '')
+        if color:
+            # Color the entire message
+            return f"{color}{formatted_message}{self.RESET}"
+        
+        return formatted_message
+
+
+def extract_json_string(s: str) -> Optional[str]:
     """
     Extracts the JSON substring from a string by finding the first '{'
     and the last '}'.
@@ -26,6 +53,7 @@ def extract_json_string(s: str) -> str:
     
     return s[start:end+1]
 
+
 @dataclass
 class AgentResult:
     """Result returned by an agent"""
@@ -36,7 +64,9 @@ class AgentResult:
     agent_name: str
     
     @classmethod
-    def success_result(cls, agent_name: str, data: Any, metadata: Dict[str, Any] = None) -> 'AgentResult':
+    def success_result(
+        cls, agent_name: str, data: Any, metadata: Optional[Dict[str, Any]] = None
+    ) -> 'AgentResult':
         return cls(
             success=True,
             data=data,
@@ -46,7 +76,9 @@ class AgentResult:
         )
     
     @classmethod
-    def error_result(cls, agent_name: str, errors: List[str], data: Any = None) -> 'AgentResult':
+    def error_result(
+        cls, agent_name: str, errors: List[str], data: Any = None
+    ) -> 'AgentResult':
         return cls(
             success=False,
             data=data,
@@ -54,6 +86,17 @@ class AgentResult:
             errors=errors,
             agent_name=agent_name
         )
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert the result to a dictionary for serialization/logging"""
+        return {
+            "success": self.success,
+            "data": self.data,
+            "metadata": self.metadata,
+            "errors": self.errors,
+            "agent_name": self.agent_name,
+        }
+
 
 class BaseAgent(ABC):
     """Base class for all agents in the system"""
@@ -64,7 +107,7 @@ class BaseAgent(ABC):
         self.logger = logging.getLogger(f"agent.{agent_name}")
         
         # Initialize LLM connector
-        self.llm = LLMConnectorFactory.create_connector(
+        self.llm: BaseLLMConnector = LLMConnectorFactory.create_connector(
             provider=config.llm_config.provider,
             api_key=config.llm_config.api_key,
             model=config.llm_config.model,
@@ -74,8 +117,16 @@ class BaseAgent(ABC):
         
         self._setup_logging()
     
+    @classmethod
+    def from_config(cls, config: AgentSystemConfig) -> 'BaseAgent':
+        """
+        Factory method for creating an agent from configuration.
+        Subclasses can override this if they need custom init logic.
+        """
+        return cls(config=config, agent_name=cls.__name__)
+    
     def _setup_logging(self):
-        """Set up logging for the agent"""
+        """Set up logging for the agent with colored output"""
         if self.config.debug:
             self.logger.setLevel(logging.DEBUG)
         else:
@@ -83,7 +134,7 @@ class BaseAgent(ABC):
         
         if not self.logger.handlers:
             handler = logging.StreamHandler()
-            formatter = logging.Formatter(
+            formatter = ColoredFormatter(
                 '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
             )
             handler.setFormatter(formatter)
@@ -122,8 +173,6 @@ class BaseAgent(ABC):
             self.logger.info(f"=== LLM RAW OUTPUT for {self.agent_name} ===")
             self.logger.info(f"Content ({len(response.content)} chars):")
             self.logger.info(f"{response.content}")
-            # self.logger.info(f"Model: {response.model}")
-            # self.logger.info(f"Finish Reason: {response.finish_reason}")
             if hasattr(response, 'usage') and response.usage:
                 self.logger.info(f"Usage: {response.usage}")
             self.logger.info(f"=== END LLM RAW OUTPUT ===")
@@ -133,20 +182,6 @@ class BaseAgent(ABC):
         except Exception as e:
             self.logger.error(f"LLM call failed: {str(e)}")
             raise e
-
-    def extract_json_string(self, s: str) -> str:
-        """
-        Extracts the JSON substring from a string by finding the first '{'
-        and the last '}'.
-        Returns None if no valid JSON block is found.
-        """
-        start = s.find("{")
-        end = s.rfind("}")
-        
-        if start == -1 or end == -1 or start > end:
-            return None  # No valid JSON found
-        
-        return s[start:end+1]
 
     def create_system_message(self, content: str) -> LLMMessage:
         """Create a system message"""
@@ -161,16 +196,10 @@ class BaseAgent(ABC):
         return LLMMessage(role="assistant", content=content)
     
     @abstractmethod
-    async def process(self, input_data: Any, context: Dict[str, Any] = None) -> AgentResult:
+    async def process(self, input_data: Any, context: Optional[Dict[str, Any]] = None) -> AgentResult:
         """
         Process input data and return a result
-        
-        Args:
-            input_data: The data to process
-            context: Additional context from other agents
-            
-        Returns:
-            AgentResult with the processing results
+        Must be implemented by subclasses.
         """
         pass
     
@@ -178,30 +207,20 @@ class BaseAgent(ABC):
     def get_capabilities(self) -> Dict[str, Any]:
         """
         Return information about what this agent can do
-        
-        Returns:
-            Dictionary describing agent capabilities
+        Must be implemented by subclasses.
         """
         pass
     
     def validate_input(self, input_data: Any) -> List[str]:
         """
         Validate input data and return list of errors
-        
-        Args:
-            input_data: Data to validate
-            
-        Returns:
-            List of validation errors (empty if valid)
+        Subclasses can override this with stricter validation.
         """
         return []  # Base implementation accepts all input
     
     async def health_check(self) -> bool:
         """
         Check if the agent is healthy and ready to process requests
-        
-        Returns:
-            True if healthy, False otherwise
         """
         try:
             # Test LLM connection
@@ -218,3 +237,12 @@ class BaseAgent(ABC):
     async def _agent_health_check(self) -> bool:
         """Override this for agent-specific health checks"""
         return True
+
+    async def shutdown(self):
+        """
+        Clean up resources when the agent is shutting down.
+        Subclasses can extend this to close DB connections, stop tasks, etc.
+        """
+        if hasattr(self.llm, "close"):
+            await self.llm.close()
+        self.logger.info(f"Agent {self.agent_name} shut down cleanly.")

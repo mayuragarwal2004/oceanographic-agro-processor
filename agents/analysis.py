@@ -125,32 +125,34 @@ class AnalysisAgent(BaseAgent):
             self.logger.info(f"Performing {len(analysis_types)} types of analysis on {len(df)} records")
             
             # Perform data quality checks
+            self.logger.info("Raj reached till here 128")
             quality_report = self._check_data_quality(df)
-            
+            self.logger.info(f"quality_report={quality_report}")
             # Perform requested analyses
             analysis_results = {}
-            
+            self.logger.info(f"analysis_types={[atype.value for atype in analysis_types]}")
+# FIX: Compare the string 'analysis_type' to the .value of the Enum member
+
             for analysis_type in analysis_types:
-                if analysis_type == AnalysisType.DESCRIPTIVE:
+                if analysis_type == AnalysisType.DESCRIPTIVE.value:
                     analysis_results['descriptive'] = await self._descriptive_analysis(df)
-                elif analysis_type == AnalysisType.TREND:
+                elif analysis_type == AnalysisType.TREND.value:
                     analysis_results['trend'] = await self._trend_analysis(df)
-                elif analysis_type == AnalysisType.ANOMALY:
+                elif analysis_type == AnalysisType.ANOMALY.value:
                     analysis_results['anomaly'] = await self._anomaly_detection(df)
-                elif analysis_type == AnalysisType.CORRELATION:
+                elif analysis_type == AnalysisType.CORRELATION.value:
                     analysis_results['correlation'] = await self._correlation_analysis(df)
-                elif analysis_type == AnalysisType.SEASONAL:
+                elif analysis_type == AnalysisType.SEASONAL.value:
                     analysis_results['seasonal'] = await self._seasonal_analysis(df)
-                elif analysis_type == AnalysisType.SPATIAL:
+                elif analysis_type == AnalysisType.SPATIAL.value:
                     analysis_results['spatial'] = await self._spatial_analysis(df)
-                elif analysis_type == AnalysisType.COMPARATIVE:
+                elif analysis_type == AnalysisType.COMPARATIVE.value:
                     analysis_results['comparative'] = await self._comparative_analysis(df, context)
-                elif analysis_type == AnalysisType.CLIMATOLOGY:
+                elif analysis_type == AnalysisType.CLIMATOLOGY.value:
                     analysis_results['climatology'] = await self._climatology_analysis(df)
-            
             # Generate insights using LLM
             insights = await self._generate_insights(analysis_results, df)
-            
+            self.logger.info(f"insights={insights}")
             return AgentResult.success_result(
                 self.agent_name,
                 {
@@ -167,6 +169,7 @@ class AnalysisAgent(BaseAgent):
             )
             
         except Exception as e:
+            self.logger.info("Raj reached till here 170")
             self.logger.error(f"Error performing analysis: {str(e)}")
             return AgentResult.error_result(
                 self.agent_name,
@@ -175,17 +178,36 @@ class AnalysisAgent(BaseAgent):
     
     def _determine_analysis_types(self, context: Dict[str, Any]) -> List[AnalysisType]:
         """Determine which analyses to perform based on context"""
-        
         analyses = [AnalysisType.DESCRIPTIVE]  # Always include descriptive stats
-        
+
         # Check for specific requests in operator graph
-        operator_graph = context.get('operator_graph', {})
-        nodes = operator_graph.get('nodes', [])
-        
+        operator_graph = context.get('operator_graph', None)
+
+        # Handle OperatorGraph object vs dictionary
+        if operator_graph is not None:
+            if hasattr(operator_graph, 'nodes'):
+                nodes = operator_graph.nodes
+            elif isinstance(operator_graph, dict):
+                nodes = operator_graph.get('nodes', [])
+            else:
+                nodes = []
+        else:
+            nodes = []
+
         for node in nodes:
-            if node.get('operation') == 'statistical_analysis':
-                operations = node.get('parameters', {}).get('operations', [])
-                
+            # Handle both dictionary and object nodes
+            if hasattr(node, 'operation'):
+                operation = node.operation
+                parameters = getattr(node, 'parameters', {})
+            elif isinstance(node, dict):
+                operation = node.get('operation')
+                parameters = node.get('parameters', {})
+            else:
+                continue
+
+            if operation == 'statistical_analysis':
+                operations = parameters.get('operations', []) if isinstance(parameters, dict) else []
+
                 if any('trend' in op for op in operations):
                     analyses.append(AnalysisType.TREND)
                 if any('anomaly' in op for op in operations):
@@ -194,14 +216,14 @@ class AnalysisAgent(BaseAgent):
                     analyses.append(AnalysisType.CORRELATION)
                 if any('seasonal' in op for op in operations):
                     analyses.append(AnalysisType.SEASONAL)
-                    
-            elif node.get('operation') == 'comparison':
-                comp_type = node.get('parameters', {}).get('type', '')
+
+            elif operation == 'comparison':
+                comp_type = parameters.get('type', '') if isinstance(parameters, dict) else ''
                 if comp_type == 'spatial':
                     analyses.append(AnalysisType.COMPARATIVE)
                 elif comp_type == 'temporal':
                     analyses.append(AnalysisType.TREND)
-        
+
         return list(set(analyses))  # Remove duplicates
     
     def _check_data_quality(self, df: pd.DataFrame) -> Dict[str, Any]:
