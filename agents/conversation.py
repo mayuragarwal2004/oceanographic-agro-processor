@@ -391,7 +391,9 @@ class ConversationAgent(BaseAgent):
             for param, stats in desc_stats.items():
                 if isinstance(stats, dict) and 'mean' in stats:
                     param_name = self._get_parameter_name(param)
-                    findings.append(f"{param_name} averaged {stats['mean']:.2f}°C across all measurements")
+                    param_unit = self._get_parameter_unit(param)
+                    unit_str = f" {param_unit}" if param_unit else ""
+                    findings.append(f"{param_name} averaged {stats['mean']:.2f}{unit_str} across all measurements")
         
         # Trend findings
         if 'trend' in actual_analysis:
@@ -654,6 +656,20 @@ class ConversationAgent(BaseAgent):
         }
         
         return name_mapping.get(param, param.title())
+    
+    def _get_parameter_unit(self, param: str) -> str:
+        """Get appropriate unit for parameter"""
+        
+        unit_mapping = {
+            'TEMP': '°C',
+            'PSAL': 'psu',  # Practical Salinity Units
+            'PRES': 'dbar',  # decibars
+            'temperature': '°C',
+            'salinity': 'psu',
+            'pressure': 'dbar'
+        }
+        
+        return unit_mapping.get(param, '')
     
     def get_capabilities(self) -> Dict[str, Any]:
         """Return information about conversation capabilities"""
