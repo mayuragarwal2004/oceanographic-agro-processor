@@ -370,64 +370,75 @@ class AgentOrchestrator(BaseAgent):
         
         # Geospatial Agent - gets locations from query understanding
         elif agent_name == 'geospatial':
-            if 'query_understanding' in previous_results:
-                entities = previous_results['query_understanding'].data.get('entities')
-                if entities and hasattr(entities, 'locations'):
-                    return entities.locations
+            if 'query_understanding' in previous_results and previous_results['query_understanding'].success:
+                query_data = previous_results['query_understanding'].data
+                if isinstance(query_data, dict):
+                    entities = query_data.get('entities')
+                    if entities and hasattr(entities, 'locations'):
+                        return entities.locations
             return []
         
         # Data Retrieval Agent - gets operator graph and locations
         elif agent_name == 'data_retrieval':
             input_data = {}
-            if 'query_understanding' in previous_results:
-                input_data['operator_graph'] = previous_results['query_understanding'].data.get('operator_graph', {})
-            if 'geospatial' in previous_results:
-                input_data['locations'] = previous_results['geospatial'].data.get('locations', [])
+            if 'query_understanding' in previous_results and previous_results['query_understanding'].success:
+                query_data = previous_results['query_understanding'].data
+                if isinstance(query_data, dict):
+                    operator_graph = query_data.get('operator_graph')
+                    if operator_graph:
+                        input_data['operator_graph'] = operator_graph
+            if 'geospatial' in previous_results and previous_results['geospatial'].success:
+                geo_data = previous_results['geospatial'].data
+                if isinstance(geo_data, dict):
+                    locations = geo_data.get('locations', [])
+                    input_data['locations'] = locations
             return input_data
         
         # Analysis Agent - gets retrieved data
         elif agent_name == 'analysis':
-            if 'data_retrieval' in previous_results:
+            if 'data_retrieval' in previous_results and previous_results['data_retrieval'].success:
                 return previous_results['data_retrieval'].data
             return {}
         
         # Visualization Agent - gets data and analysis results
         elif agent_name == 'visualization':
             input_data = {}
-            if 'data_retrieval' in previous_results:
-                input_data.update(previous_results['data_retrieval'].data)
-            if 'analysis' in previous_results:
-                input_data['analysis_results'] = previous_results['analysis'].data
+            if 'data_retrieval' in previous_results and previous_results['data_retrieval'].success:
+                data_retrieval_data = previous_results['data_retrieval'].data
+                if isinstance(data_retrieval_data, dict):
+                    input_data.update(data_retrieval_data)
+            if 'analysis' in previous_results and previous_results['analysis'].success:
+                analysis_data = previous_results['analysis'].data
+                if analysis_data:
+                    input_data['analysis_results'] = analysis_data
             return input_data
         
         # Critic Agent - gets all data and analysis results  
         elif agent_name == 'critic':
             input_data = {}
-            if 'data_retrieval' in previous_results:
-                input_data.update(previous_results['data_retrieval'].data)
-            if 'analysis' in previous_results:
-                input_data['analysis_results'] = previous_results['analysis'].data
-            if 'visualization' in previous_results:
-                input_data['visualizations'] = previous_results['visualization'].data
+            if 'data_retrieval' in previous_results and previous_results['data_retrieval'].success:
+                data_retrieval_data = previous_results['data_retrieval'].data
+                if isinstance(data_retrieval_data, dict):
+                    input_data.update(data_retrieval_data)
+            if 'analysis' in previous_results and previous_results['analysis'].success:
+                analysis_data = previous_results['analysis'].data
+                if analysis_data:
+                    input_data['analysis_results'] = analysis_data
+            if 'visualization' in previous_results and previous_results['visualization'].success:
+                viz_data = previous_results['visualization'].data
+                if viz_data:
+                    input_data['visualizations'] = viz_data
             return input_data
         
         # Conversation Agent - gets all results
         elif agent_name == 'conversation':
-            print("mayur find the error here")
-            print("*"*20)
-            import pprint
-            
-            pprint.pprint(previous_results)
-            
-            print("*"*20)
-            print("mayur end")
             return {
-                'query_understanding': previous_results.get('query_understanding', {}).data,
-                'geospatial': previous_results.get('geospatial', {}).data,
-                'data_retrieval': previous_results.get('data_retrieval', {}).data,
-                'analysis': previous_results.get('analysis', {}).data,
-                'visualization': previous_results.get('visualization', {}).data,
-                'validation': previous_results.get('critic', {}).data
+                'query_understanding': previous_results['query_understanding'].data if 'query_understanding' in previous_results and previous_results['query_understanding'].success else {},
+                'geospatial': previous_results['geospatial'].data if 'geospatial' in previous_results and previous_results['geospatial'].success else {},
+                'data_retrieval': previous_results['data_retrieval'].data if 'data_retrieval' in previous_results and previous_results['data_retrieval'].success else {},
+                'analysis': previous_results['analysis'].data if 'analysis' in previous_results and previous_results['analysis'].success else {},
+                'visualization': previous_results['visualization'].data if 'visualization' in previous_results and previous_results['visualization'].success else {},
+                'validation': previous_results['critic'].data if 'critic' in previous_results and previous_results['critic'].success else {}
             }
         
         return context.original_query  # Fallback
@@ -444,9 +455,17 @@ class AgentOrchestrator(BaseAgent):
         
         # Add relevant previous results to context
         if agent_name in ['analysis', 'visualization', 'critic', 'conversation']:
-            if 'query_understanding' in previous_results:
-                agent_context['operator_graph'] = previous_results['query_understanding'].data.get('operator_graph', {})
-                entities = previous_results['query_understanding'].data.get('entities')
+            if 'query_understanding' in previous_results and previous_results['query_understanding'].success:
+                # Get operator_graph - it could be an OperatorGraph object or dict
+                query_data = previous_results['query_understanding'].data
+                operator_graph = query_data.get('operator_graph') if isinstance(query_data, dict) else None
+                
+                if operator_graph:
+                    agent_context['operator_graph'] = operator_graph
+                else:
+                    agent_context['operator_graph'] = {}
+                
+                entities = query_data.get('entities') if isinstance(query_data, dict) else None
                 agent_context['entities'] = entities if entities else {}
         
         return agent_context

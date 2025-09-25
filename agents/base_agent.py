@@ -13,6 +13,32 @@ from .llm import BaseLLMConnector, LLMMessage, LLMResponse, LLMConnectorFactory
 from .config import AgentSystemConfig
 
 
+class ColoredFormatter(logging.Formatter):
+    """Custom formatter to add colors to different log levels"""
+    
+    # ANSI color codes
+    COLORS = {
+        'DEBUG': '\033[36m',      # Cyan
+        'INFO': '\033[37m',       # White
+        'WARNING': '\033[33m',    # Yellow
+        'ERROR': '\033[31m',      # Red
+        'CRITICAL': '\033[35m',   # Magenta
+    }
+    RESET = '\033[0m'  # Reset color
+    
+    def format(self, record):
+        # Get the original formatted message
+        formatted_message = super().format(record)
+        
+        # Add color based on log level
+        color = self.COLORS.get(record.levelname, '')
+        if color:
+            # Color the entire message
+            return f"{color}{formatted_message}{self.RESET}"
+        
+        return formatted_message
+
+
 def extract_json_string(s: str) -> Optional[str]:
     """
     Extracts the JSON substring from a string by finding the first '{'
@@ -100,7 +126,7 @@ class BaseAgent(ABC):
         return cls(config=config, agent_name=cls.__name__)
     
     def _setup_logging(self):
-        """Set up logging for the agent"""
+        """Set up logging for the agent with colored output"""
         if self.config.debug:
             self.logger.setLevel(logging.DEBUG)
         else:
@@ -108,7 +134,7 @@ class BaseAgent(ABC):
         
         if not self.logger.handlers:
             handler = logging.StreamHandler()
-            formatter = logging.Formatter(
+            formatter = ColoredFormatter(
                 '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
             )
             handler.setFormatter(formatter)

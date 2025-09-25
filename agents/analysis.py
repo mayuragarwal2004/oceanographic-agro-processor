@@ -175,17 +175,36 @@ class AnalysisAgent(BaseAgent):
     
     def _determine_analysis_types(self, context: Dict[str, Any]) -> List[AnalysisType]:
         """Determine which analyses to perform based on context"""
-        
         analyses = [AnalysisType.DESCRIPTIVE]  # Always include descriptive stats
-        
+
         # Check for specific requests in operator graph
-        operator_graph = context.get('operator_graph', {})
-        nodes = operator_graph.get('nodes', [])
-        
+        operator_graph = context.get('operator_graph', None)
+
+        # Handle OperatorGraph object vs dictionary
+        if operator_graph is not None:
+            if hasattr(operator_graph, 'nodes'):
+                nodes = operator_graph.nodes
+            elif isinstance(operator_graph, dict):
+                nodes = operator_graph.get('nodes', [])
+            else:
+                nodes = []
+        else:
+            nodes = []
+
         for node in nodes:
-            if node.get('operation') == 'statistical_analysis':
-                operations = node.get('parameters', {}).get('operations', [])
-                
+            # Handle both dictionary and object nodes
+            if hasattr(node, 'operation'):
+                operation = node.operation
+                parameters = getattr(node, 'parameters', {})
+            elif isinstance(node, dict):
+                operation = node.get('operation')
+                parameters = node.get('parameters', {})
+            else:
+                continue
+
+            if operation == 'statistical_analysis':
+                operations = parameters.get('operations', []) if isinstance(parameters, dict) else []
+
                 if any('trend' in op for op in operations):
                     analyses.append(AnalysisType.TREND)
                 if any('anomaly' in op for op in operations):
@@ -194,14 +213,14 @@ class AnalysisAgent(BaseAgent):
                     analyses.append(AnalysisType.CORRELATION)
                 if any('seasonal' in op for op in operations):
                     analyses.append(AnalysisType.SEASONAL)
-                    
-            elif node.get('operation') == 'comparison':
-                comp_type = node.get('parameters', {}).get('type', '')
+
+            elif operation == 'comparison':
+                comp_type = parameters.get('type', '') if isinstance(parameters, dict) else ''
                 if comp_type == 'spatial':
                     analyses.append(AnalysisType.COMPARATIVE)
                 elif comp_type == 'temporal':
                     analyses.append(AnalysisType.TREND)
-        
+
         return list(set(analyses))  # Remove duplicates
     
     def _check_data_quality(self, df: pd.DataFrame) -> Dict[str, Any]:
