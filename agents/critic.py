@@ -112,10 +112,11 @@ class CriticAgent(BaseAgent):
     async def process(self, input_data: Any, context: Dict[str, Any] = None) -> AgentResult:
         """Validate data and analysis results"""
         
-        # Initialize query logger
-        if context and 'query_logger_manager' in context:
-            self.query_logger_manager = context['query_logger_manager']
-            self.current_query_logger = context.get('current_query_logger')
+        # Initialize query logger from shared context
+        self.current_query_logger = context.get('current_query_logger') if context else None
+        if not self.current_query_logger and self.query_logger_manager:
+            # Fallback to creating new logger if not provided in context
+            self.current_query_logger = self.query_logger_manager.get_query_logger_wrapper()
         
         if self.current_query_logger:
             self.current_query_logger.log_agent_start("critic", {
@@ -202,9 +203,8 @@ class CriticAgent(BaseAgent):
                 [f"Failed to validate results: {str(e)}"]
             )
         finally:
-            # Cleanup query logger
-            if self.current_query_logger:
-                self.current_query_logger.cleanup()
+            # Set logger to None (orchestrator handles cleanup for shared logger)
+            self.current_query_logger = None
     
     def _determine_validation_level(self, context: Dict[str, Any]) -> ValidationLevel:
         """Determine appropriate validation level based on context"""

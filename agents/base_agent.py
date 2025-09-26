@@ -77,12 +77,12 @@ class AgentResult:
     
     @classmethod
     def error_result(
-        cls, agent_name: str, errors: List[str], data: Any = None
+        cls, agent_name: str, errors: List[str], data: Any = None, metadata: Optional[Dict[str, Any]] = None
     ) -> 'AgentResult':
         return cls(
             success=False,
             data=data,
-            metadata={},
+            metadata=metadata or {},
             errors=errors,
             agent_name=agent_name
         )
@@ -105,6 +105,9 @@ class BaseAgent(ABC):
         self.config = config
         self.agent_name = agent_name
         self.logger = logging.getLogger(f"agent.{agent_name}")
+        
+        # Query logger for detailed query logging
+        self.current_query_logger = None
         
         # Initialize LLM connector
         self.llm: BaseLLMConnector = LLMConnectorFactory.create_connector(
@@ -161,6 +164,19 @@ class BaseAgent(ABC):
         self.logger.info(f"Temperature: {temp}, Max Tokens: {tokens}")
         self.logger.info(f"=== END LLM INPUT ===")
         
+        # Also log to query logger if available
+        if self.current_query_logger:
+            self.current_query_logger.info(f"=== LLM INPUT for {self.agent_name} ===")
+            for i, message in enumerate(messages):
+                self.current_query_logger.info(f"Message {i+1} [{message.role}]:")
+                self.current_query_logger.info(f"{message.content}")
+                self.current_query_logger.info(f"--- End Message {i+1} ---")
+            self.current_query_logger.info(f"Temperature: {temp}, Max Tokens: {tokens}")
+            self.current_query_logger.info(f"=== END LLM INPUT ===")
+        else:
+            # Debug: log when query logger is not available
+            self.logger.debug(f"Query logger not available for {self.agent_name} LLM call")
+        
         try:
             response = await self.llm.generate(
                 messages=messages,
@@ -176,6 +192,18 @@ class BaseAgent(ABC):
             if hasattr(response, 'usage') and response.usage:
                 self.logger.info(f"Usage: {response.usage}")
             self.logger.info(f"=== END LLM RAW OUTPUT ===")
+            
+            # Also log to query logger if available  
+            if self.current_query_logger:
+                self.current_query_logger.info(f"=== LLM RAW OUTPUT for {self.agent_name} ===")
+                self.current_query_logger.info(f"Content ({len(response.content)} chars):")
+                self.current_query_logger.info(f"{response.content}")
+                if hasattr(response, 'usage') and response.usage:
+                    self.current_query_logger.info(f"Usage: {response.usage}")
+                self.current_query_logger.info(f"=== END LLM RAW OUTPUT ===")
+            else:
+                # Debug: log when query logger is not available  
+                self.logger.debug(f"Query logger not available for {self.agent_name} LLM response")
             
             return response
             

@@ -12,6 +12,7 @@ sys.path.append(str(Path(__file__).parent))
 
 from agents.config import ConfigManager
 from agents.orchestrator import AgentOrchestrator
+from utils.query_logging import get_query_logger
 
 async def main():
     """Main entry point for the system"""
@@ -89,26 +90,45 @@ async def main():
             
             result = await orchestrator.process(query, context)
             
+            # Create a query logger for logging terminal output (same query should access same log file)
+            query_logger_manager = get_query_logger()
+            terminal_logger = query_logger_manager.get_query_logger(query, session_id)
+            
             if result.success:
-                print("✅ Analysis completed successfully!\n")
+                success_msg = "✅ Analysis completed successfully!\n"
+                print(success_msg)
+                terminal_logger.info(success_msg.strip())
                 
                 # Display response
                 response_data = result.data
                 response_text = response_data.get('response', 'No response generated')
-                print("📋 Results:")
-                print("-" * 40)
+                results_header = "📋 Results:"
+                separator = "-" * 40
+                print(results_header)
+                print(separator)
                 print(response_text)
+                
+                terminal_logger.info(results_header)
+                terminal_logger.info(separator)
+                terminal_logger.info(response_text)
                 
                 # Show execution summary
                 exec_summary = response_data.get('execution_summary', {})
                 if exec_summary:
-                    print(f"\n⏱️  Execution time: {exec_summary.get('total_time', 0):.1f}s")
-                    print(f"🤖 Agents used: {', '.join(exec_summary.get('agents_executed', []))}")
+                    exec_time_msg = f"\n⏱️  Execution time: {exec_summary.get('total_time', 0):.1f}s"
+                    agents_msg = f"🤖 Agents used: {', '.join(exec_summary.get('agents_executed', []))}"
+                    print(exec_time_msg)
+                    print(agents_msg)
+                    
+                    terminal_logger.info(exec_time_msg.strip())
+                    terminal_logger.info(agents_msg)
                 
                 # Show available visualizations
                 visualizations = response_data.get('visualizations', {})
                 if visualizations:
-                    print(f"\n📊 Visualizations created: {', '.join(visualizations.keys())}")
+                    viz_msg = f"\n📊 Visualizations created: {', '.join(visualizations.keys())}"
+                    print(viz_msg)
+                    terminal_logger.info(viz_msg.strip())
                 
                 # Show validation score
                 validation = response_data.get('validation_report', {})
@@ -116,14 +136,25 @@ async def main():
                     score = validation['overall_score']
                     approval = validation.get('approved', False)
                     status = "✅ Approved" if approval else "⚠️  Has issues"
-                    print(f"🔍 Data quality: {score:.1f}% {status}")
+                    quality_msg = f"🔍 Data quality: {score:.1f}% {status}"
+                    print(quality_msg)
+                    terminal_logger.info(quality_msg)
                 
             else:
-                print("❌ Analysis failed:")
+                error_msg = "❌ Analysis failed:"
+                print(error_msg)
+                terminal_logger.error(error_msg)
+                    
                 for error in result.errors:
-                    print(f"   - {error}")
+                    error_detail = f"   - {error}"
+                    print(error_detail)
+                    terminal_logger.error(error_detail)
             
-            print("\n" + "=" * 50)
+            separator_line = "\n" + "=" * 50
+            print(separator_line)
+            terminal_logger.info("=" * 50)
+            # Cleanup the logger now that we're done
+            query_logger_manager.close_query_logger(terminal_logger)
             
         except KeyboardInterrupt:
             print("\n👋 Goodbye!")

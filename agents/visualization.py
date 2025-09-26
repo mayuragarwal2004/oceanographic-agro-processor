@@ -93,10 +93,11 @@ class VisualizationAgent(BaseAgent):
     async def process(self, input_data: Any, context: Dict[str, Any] = None) -> AgentResult:
         """Process data and generate visualizations"""
         
-        # Initialize query logger
-        if context and 'query_logger_manager' in context:
-            self.query_logger_manager = context['query_logger_manager']
-            self.current_query_logger = context.get('current_query_logger')
+        # Initialize query logger from shared context
+        self.current_query_logger = context.get('current_query_logger') if context else None
+        if not self.current_query_logger and self.query_logger_manager:
+            # Fallback to creating new logger if not provided in context
+            self.current_query_logger = self.query_logger_manager.get_query_logger_wrapper()
         
         if self.current_query_logger:
             self.current_query_logger.log_agent_start("visualization", {
@@ -192,9 +193,8 @@ class VisualizationAgent(BaseAgent):
                 [f"Failed to create visualizations: {str(e)}"]
             )
         finally:
-            # Cleanup query logger
-            if self.current_query_logger:
-                self.current_query_logger.cleanup()
+            # Set logger to None (orchestrator handles cleanup for shared logger)
+            self.current_query_logger = None
     
     async def _determine_visualizations(self, df: pd.DataFrame, analysis_results: Dict[str, Any], 
                                       context: Dict[str, Any]) -> List[VisualizationConfig]:

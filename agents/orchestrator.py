@@ -66,6 +66,7 @@ class AgentOrchestrator(BaseAgent):
         
         # Initialize query logging manager
         self.query_logger_manager = QueryLogger()
+        self.current_query_logger = None
         
         # Initialize all agents
         self.agents = {
@@ -119,6 +120,14 @@ class AgentOrchestrator(BaseAgent):
             
             # Create single query logger wrapper for the entire session
             query_logger_wrapper = self.query_logger_manager.get_query_logger_wrapper(user_query, session_id)
+            self.current_query_logger = query_logger_wrapper
+            
+            # Log orchestrator start with shared logger
+            self.current_query_logger.log_agent_start("orchestrator", {
+                "query": user_query[:100],
+                "session_id": session_id,
+                "context_keys": list(context.keys()) if context else []
+            })
             
             self.logger.info(f"Starting orchestration for query: {user_query[:100]}...")
             
@@ -161,28 +170,62 @@ class AgentOrchestrator(BaseAgent):
             # Calculate total execution time
             total_time = (datetime.now() - execution_context.start_time).total_seconds()
             
+            result = {
+                'response': conversation_data.get('response', 'Analysis completed successfully.'),
+                'visualizations': visualization_data.get('visualizations', {}),
+                'validation_report': critic_data.get('validation_report', {}),
+                'execution_summary': {
+                    'total_time': total_time,
+                    'agents_executed': list(final_result.keys()),
+                    'stages_completed': len(execution_plan.stages),
+                    'session_id': session_id
+                },
+                'intermediate_results': {k: v.data for k, v in execution_context.intermediate_results.items() if v.success}
+            }
+            
+            # Log orchestrator result
+            if self.current_query_logger:
+                self.current_query_logger.log_result("orchestrator", {
+                    'total_time': total_time,
+                    'agents_executed': list(final_result.keys()),
+                    'stages_completed': len(execution_plan.stages),
+                    'success': True
+                })
+                
+                # Log final execution summary (same as what main.py prints to terminal)
+                self._log_final_summary(result, total_time, final_result)
+                
+                # Store query logger reference before cleanup
+                query_logger_for_main = self.current_query_logger
+                
+                # Don't cleanup yet - let main.py use the logger
+                # self.current_query_logger.cleanup()
+            else:
+                query_logger_for_main = None
+            
             return AgentResult.success_result(
                 self.agent_name,
+                result,
                 {
-                    'response': conversation_data.get('response', 'Analysis completed successfully.'),
-                    'visualizations': visualization_data.get('visualizations', {}),
-                    'validation_report': critic_data.get('validation_report', {}),
-                    'execution_summary': {
-                        'total_time': total_time,
-                        'agents_executed': list(final_result.keys()),
-                        'stages_completed': len(execution_plan.stages),
-                        'session_id': session_id
-                    },
-                    'intermediate_results': {k: v.data for k, v in execution_context.intermediate_results.items() if v.success}
-                },
-                {'execution_time': total_time}
+                    'execution_time': total_time,
+                    'query_logger': query_logger_for_main  # Pass logger to main.py
+                }
             )
             
         except Exception as e:
-            self.logger.error(f"Orchestration failed: {str(e)}")
+            error_msg = f"Orchestration failed: {str(e)}"
+            self.logger.error(error_msg)
+            
+            # Log error with shared logger
+            if self.current_query_logger:
+                self.current_query_logger.log_error("orchestrator", str(e))
+                # Cleanup on error too
+                self.current_query_logger.cleanup()
+                
             return AgentResult.error_result(
                 self.agent_name,
-                [f"Failed to process query: {str(e)}"]
+                [f"Failed to process query: {str(e)}"],
+                {'query_logger': None}  # No logger on error
             )
     
     async def _create_execution_plan(self, query: str, context: Dict[str, Any]) -> ExecutionPlan:
@@ -558,3 +601,40 @@ class AgentOrchestrator(BaseAgent):
             health_status['unhealthy_agents'] = unhealthy_agents
         
         return health_status
+
+    def _log_final_summary(self, result_data: Dict[str, Any], execution_time: float, agent_results: Dict[str, AgentResult]):
+        """Log final execution summary to query logger (same format as main.py terminal output)"""
+        if not self.current_query_logger:
+            return
+            
+        summary_lines = []
+        
+        # Header
+        summary_lines.append("=" * 50)
+        summary_lines.append("🎯 EXECUTION SUMMARY")
+        
+        # Execution time
+        summary_lines.append(f"⏱️  Total execution time: {execution_time:.2f} seconds")
+        
+        # Agents executed
+        agents_executed = [name for name, result in agent_results.items() if result.success]
+        summary_lines.append(f"🤖 Agents executed: {', '.join(agents_executed)}")
+        
+        # Show visualizations if any
+        visualizations = result_data.get('visualizations', {})
+        if visualizations:
+            summary_lines.append(f"📊 Visualizations created: {', '.join(visualizations.keys())}")
+        
+        # Show validation score
+        validation = result_data.get('validation_report', {})
+        if validation and 'overall_score' in validation:
+            score = validation['overall_score']
+            approval = validation.get('approved', False)
+            status = "✅ Approved" if approval else "⚠️  Has issues"
+            summary_lines.append(f"🔍 Data quality: {score:.1f}% {status}")
+        
+        summary_lines.append("=" * 50)
+        
+        # Log each line using the info method
+        for line in summary_lines:
+            self.current_query_logger.info(line)
